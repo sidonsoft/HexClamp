@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Event",
+  "type": "object",
+  "required": ["id", "timestamp", "source", "kind", "payload", "tags", "priority"],
+  "properties": {
+    "id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "source": { "type": "string", "enum": ["chat", "repo", "browser", "system", "github", "other"] },
+    "kind": { "type": "string" },
+    "payload": { "type": "object" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "priority": { "type": "string", "enum": ["low", "normal", "high", "critical"] }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,25 @@
+external_send:
+  require_approval: true
+
+config_mutation:
+  require_backup: true
+  require_validation: true
+
+retries:
+  max_attempts: 3
+  require_backoff: true
+
+verification:
+  required_for:
+    - code
+    - browser
+    - system
+    - messaging
+
+loop_control:
+  allow_self_requeue_forever: false
+  require_evidence: true
+
+cost_control:
+  prefer_condensed_state: true
+  prefer_low_cost_observation: true

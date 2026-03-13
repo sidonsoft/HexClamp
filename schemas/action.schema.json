@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Action",
+  "type": "object",
+  "required": ["id", "type", "goal", "inputs", "executor", "success_criteria", "risk", "status"],
+  "properties": {
+    "id": { "type": "string" },
+    "type": { "type": "string", "enum": ["research", "code", "browser", "message", "system", "wait"] },
+    "goal": { "type": "string" },
+    "inputs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "executor": { "type": "string" },
+    "success_criteria": { "type": "string" },
+    "risk": { "type": "string", "enum": ["low", "medium", "high"] },
+    "status": { "type": "string", "enum": ["pending", "running", "blocked", "done", "failed"] }
+  },
+  "additionalProperties": false
+}

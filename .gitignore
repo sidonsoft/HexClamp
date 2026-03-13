@@ -1,0 +1,11 @@
+# Runtime artifacts
+runs/
+*.pyc
+__pycache__/
+.DS_Store
+*.log
+
+# Environment
+.env
+.venv/
+venv/

@@ -1,0 +1,27 @@
+fast_loop:
+  enabled: true
+  trigger: event_or_poll
+  interval_seconds: 300
+  tasks:
+    - observe_new_events
+    - refresh_open_loops
+    - inspect_recent_failures
+
+medium_loop:
+  enabled: true
+  trigger: schedule
+  interval_seconds: 3600
+  tasks:
+    - rebuild_condensed_state_if_changed
+    - reprioritize_actions
+    - prune_stale_items
+
+slow_loop:
+  enabled: true
+  trigger: schedule
+  interval_seconds: 86400
+  tasks:
+    - summarize_progress
+    - extract_durable_memory
+    - prune_junk_state
+    - generate_operator_digest

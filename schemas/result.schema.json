@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Result",
+  "type": "object",
+  "required": ["action_id", "status", "summary", "evidence", "artifacts", "follow_up", "verified"],
+  "properties": {
+    "action_id": { "type": "string" },
+    "status": { "type": "string", "enum": ["success", "partial", "failed"] },
+    "summary": { "type": "string" },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "follow_up": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "verified": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

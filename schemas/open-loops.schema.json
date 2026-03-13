@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenLoops",
+  "type": "array",
+  "items": { "$ref": "./loop.schema.json" }
+}

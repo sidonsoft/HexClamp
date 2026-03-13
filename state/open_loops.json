@@ -1,0 +1,21 @@
+[
+  {
+    "id": "loop-evt-6b2c86e3-3c72-4faa-9b38-ef43890414bf",
+    "title": "send telegram message to @sidonsoft: test message from hydra-claw-loop",
+    "status": "blocked",
+    "priority": "normal",
+    "owner": "messaging",
+    "created_at": "2026-03-13T19:15:47.239306+00:00",
+    "updated_at": "2026-03-13T19:15:53.158533+00:00",
+    "next_step": "Await approval to send telegram message to @sidonsoft",
+    "blocked_by": [
+      "approval required"
+    ],
+    "evidence": [
+      "evt-6b2c86e3-3c72-4faa-9b38-ef43890414bf",
+      "act-5ad1aade-6175-4ceb-9415-2e6e4812063e",
+      "/Users/burnz/.openclaw/workspace/hydra-claw-loop/runs/messaging_tasks/act-5ad1aade-6175-4ceb-9415-2e6e4812063e/task.json",
+      "/Users/burnz/.openclaw/workspace/hydra-claw-loop/runs/messaging_tasks/act-5ad1aade-6175-4ceb-9415-2e6e4812063e/execution.json"
+    ]
+  }
+]

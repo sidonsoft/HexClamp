@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CurrentState",
+  "type": "object",
+  "required": ["goal", "active_context", "recent_events", "current_actions", "open_loops", "last_verified_result"],
+  "properties": {
+    "goal": { "type": "string" },
+    "active_context": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "recent_events": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "current_actions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "open_loops": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "last_verified_result": {
+      "type": ["object", "null"]
+    }
+  },
+  "additionalProperties": false
+}

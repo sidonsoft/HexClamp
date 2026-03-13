@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenLoop",
+  "type": "object",
+  "required": ["id", "title", "status", "priority", "owner", "created_at", "updated_at", "next_step", "blocked_by", "evidence"],
+  "properties": {
+    "id": { "type": "string" },
+    "title": { "type": "string" },
+    "status": { "type": "string", "enum": ["open", "blocked", "resolved", "stale"] },
+    "priority": { "type": "string", "enum": ["low", "normal", "high", "critical"] },
+    "owner": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "next_step": { "type": "string" },
+    "blocked_by": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

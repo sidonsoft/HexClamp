@@ -1,0 +1,37 @@
+observer:
+  enabled: true
+  model: default
+  role: normalize_inputs
+
+condenser:
+  enabled: true
+  model: default
+  role: compress_context
+
+planner:
+  enabled: true
+  model: default
+  role: choose_next_actions
+
+verifier:
+  enabled: true
+  model: default
+  role: validate_claimed_results
+
+executors:
+  research:
+    enabled: true
+    model: default
+    role: gather_and_summarize
+  code:
+    enabled: false
+    model: default
+    role: modify_and_test
+  browser:
+    enabled: false
+    model: default
+    role: navigate_and_extract
+  messaging:
+    enabled: false
+    model: default
+    role: draft_or_send_with_approval
