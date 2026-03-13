@@ -23,7 +23,7 @@ WORKSPACE_ROOT = Path.home() / ".openclaw" / "workspace"
 from models import CurrentState, Event, OpenLoop
 from observer import observe_chat_message
 from planner import plan_next_actions, rank_open_loops
-from store import RUNS_DIR, STATE_DIR, append_json_array, ensure_dirs, read_json, write_json
+from store import RUNS_DIR, STATE_DIR, append_json_array, bootstrap_runtime_state, ensure_dirs, read_json, write_json
 from validate import validate_payload
 from verifier import verify_result
 
@@ -112,6 +112,7 @@ def _execute_loop_action(action, loop: OpenLoop):
 
 def process_once() -> Dict[str, Any]:
     ensure_dirs()
+    bootstrap_runtime_state()
 
     queued_events = load_event_queue()
     open_loops = load_open_loops()
@@ -164,7 +165,11 @@ def process_once() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     ensure_dirs()
-    if len(sys.argv) > 1 and sys.argv[1] == "enqueue":
+    if len(sys.argv) > 1 and sys.argv[1] == "init":
+        created = bootstrap_runtime_state()
+        print(json.dumps({"bootstrapped": created}, indent=2))
+    elif len(sys.argv) > 1 and sys.argv[1] == "enqueue":
+        bootstrap_runtime_state()
         text = " ".join(sys.argv[2:]).strip() or "Queued event"
         event = queue_event(text)
         print(json.dumps({"queued": event.to_dict()}, indent=2))

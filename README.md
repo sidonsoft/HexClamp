@@ -73,3 +73,21 @@ hydra-claw-loop/
 This repository contains the scaffold, starter schemas, prompt contracts, Python loop implementation, and executor/task tooling.
 
 Generated runtime files (`runs/`, live `state/*.json`, `state/recent_changes.md`) are intentionally excluded from source control.
+
+## Runtime bootstrap
+
+Missing runtime state is recreated automatically when the loop runs.
+
+Manual bootstrap:
+
+```bash
+python3 agents/loop.py init
+# or
+python3 scripts/bootstrap_runtime.py
+```
+
+This recreates:
+- `state/current_state.json`
+- `state/event_queue.json`
+- `state/open_loops.json`
+- `state/recent_changes.md`
