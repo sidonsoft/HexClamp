@@ -70,4 +70,6 @@ hydra-claw-loop/
 
 ## Current status
 
-This repository now contains the scaffold, starter schemas, queue + open-loop state, prompt contracts, Python loop implementation, and a first real code-task artifact path.
+This repository contains the scaffold, starter schemas, prompt contracts, Python loop implementation, and executor/task tooling.
+
+Generated runtime files (`runs/`, live `state/*.json`, `state/recent_changes.md`) are intentionally excluded from source control.
