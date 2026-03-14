@@ -15,7 +15,7 @@ from models import Action, Event, OpenLoop
 from validate import validate_payload
 
 
-PRIORITY_ORDER = ["low", "normal", "high", "critical"]
+PRIORITY_ORDER = ["critical", "high", "normal", "low"]
 STATUS_ORDER = ["open", "blocked"]  # open comes first
 EXECUTOR_WEIGHTS = {
     "code": 3,      # Code tasks often block other work
@@ -275,16 +275,9 @@ def _action_for_loop(loop: OpenLoop) -> Action:
 
 
 def rank_open_loops(open_loops: List[OpenLoop]) -> List[OpenLoop]:
+    """Rank actionable loops with most urgent first."""
     actionable = [loop for loop in open_loops if loop.status in {"open", "blocked"}]
-    return sorted(
-        actionable,
-        key=lambda loop: (
-            PRIORITY_ORDER.index(loop.priority),
-            0 if loop.status == "open" else 1,
-            len(loop.blocked_by),
-            loop.updated_at,
-        ),
-    )
+    return sorted(actionable, key=_calculate_urgency_score)
 
 
 def plan_next_actions(queued_events: List[Event], open_loops: List[OpenLoop]) -> List[Action]:
@@ -293,6 +286,6 @@ def plan_next_actions(queued_events: List[Event], open_loops: List[OpenLoop]) ->
 
     ranked_loops = rank_open_loops(open_loops)
     if ranked_loops:
-        return [_action_for_loop(ranked_loops[-1])]
+        return [_action_for_loop(ranked_loops[0])]
 
     return []
