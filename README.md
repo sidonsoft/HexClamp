@@ -108,3 +108,12 @@ Current automated coverage includes:
 - task completion verification tests
 - runtime bootstrap tests
 - one end-to-end enqueue → plan → task artifact integration test
+
+## CI
+
+GitHub Actions runs the test suite automatically on:
+- pushes to `main`
+- pull requests
+
+Workflow file:
+- `.github/workflows/ci.yml`
