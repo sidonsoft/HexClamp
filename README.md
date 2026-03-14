@@ -91,3 +91,20 @@ This recreates:
 - `state/event_queue.json`
 - `state/open_loops.json`
 - `state/recent_changes.md`
+
+## Testing
+
+Run the full test suite:
+
+```bash
+make test
+# or
+python3 -m unittest discover -s tests -v
+```
+
+Current automated coverage includes:
+- message parser regression tests
+- planner ranking tests
+- task completion verification tests
+- runtime bootstrap tests
+- one end-to-end enqueue → plan → task artifact integration test
