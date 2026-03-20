@@ -22,7 +22,11 @@ from executors import (
 WORKSPACE_ROOT = Path.home() / ".openclaw" / "workspace"
 from models import CurrentState, Event, OpenLoop
 from observer import observe_chat_message
-from planner import plan_next_actions, rank_open_loops
+from planner import plan_next_actions, rank_open_loops, STALE_THRESHOLD_HOURS
+
+MAX_CONSECUTIVE_ERRORS = 3
+_circuit_open = False
+_consecutive_errors = 0
 from store import RUNS_DIR, STATE_DIR, append_json_array, bootstrap_runtime_state, ensure_dirs, read_json, write_json
 from validate import validate_payload
 from verifier import verify_result
@@ -31,6 +35,40 @@ from verifier import verify_result
 EVENT_QUEUE_PATH = STATE_DIR / "event_queue.json"
 OPEN_LOOPS_PATH = STATE_DIR / "open_loops.json"
 CURRENT_STATE_PATH = STATE_DIR / "current_state.json"
+
+
+def _reset_circuit():
+    global _circuit_open, _consecutive_errors
+    _circuit_open = False
+    _consecutive_errors = 0
+
+
+def _trip_circuit():
+    global _circuit_open, _consecutive_errors
+    _circuit_open = True
+    _consecutive_errors = 0
+
+
+def prune_old_loops(open_loops: List[OpenLoop]) -> List[OpenLoop]:
+    """Remove loops older than STALE_THRESHOLD_HOURS from open_loops."""
+    return [loop for loop in open_loops if not _is_loop_stale(loop)]
+
+
+def _is_loop_stale(loop: OpenLoop) -> bool:
+    """Check if loop is stale based on time since creation."""
+    updated = _parse_datetime(loop.updated_at)
+    now = datetime.now(timezone.utc)
+    hours_since = (now - updated).total_seconds() / 3600
+    return hours_since > STALE_THRESHOLD_HOURS
+
+
+def _parse_datetime(dt_str: str) -> datetime:
+    if dt_str.endswith('Z'):
+        dt_str = dt_str[:-1] + '+00:00'
+    try:
+        return datetime.fromisoformat(dt_str)
+    except ValueError:
+        return datetime.now(timezone.utc)
 
 
 def load_current_state() -> CurrentState:
@@ -111,6 +149,22 @@ def _execute_loop_action(action, loop: OpenLoop):
 
 
 def process_once() -> Dict[str, Any]:
+    global _circuit_open, _consecutive_errors
+
+    # Circuit breaker: return early if open
+    if _circuit_open:
+        payload = {
+            "processed_event": None,
+            "processed_loop": None,
+            "state": None,
+            "actions": [],
+            "result": None,
+            "error": "CIRCUIT BREAKER TRIPPED — loop halted",
+        }
+        write_json(RUNS_DIR / f"run-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json", payload)
+        write_json(RUNS_DIR / "last_run.json", payload)
+        return payload
+
     ensure_dirs()
     bootstrap_runtime_state()
 
@@ -122,28 +176,41 @@ def process_once() -> Dict[str, Any]:
     result = None
     processed_event = None
     processed_loop = None
+    execution_error = None
 
     if actions:
         action = actions[0]
         state.current_actions = [action.id]
 
-        if queued_events:
-            processed_event = queued_events.pop(0)
-            summary, evidence, artifacts, loop = _execute_event_action(action, processed_event)
-            open_loops = _replace_or_append_loop(open_loops, loop)
-            result = verify_result(action, summary, evidence, artifacts)
-        else:
-            candidates = _active_loop_candidates(open_loops)
-            if candidates:
-                processed_loop = candidates[-1]
-                summary, evidence, artifacts, updated_loop = _execute_loop_action(action, processed_loop)
-                open_loops = _replace_or_append_loop(open_loops, updated_loop)
+        try:
+            if queued_events:
+                processed_event = queued_events.pop(0)
+                summary, evidence, artifacts, loop = _execute_event_action(action, processed_event)
+                open_loops = _replace_or_append_loop(open_loops, loop)
                 result = verify_result(action, summary, evidence, artifacts)
+            else:
+                candidates = _active_loop_candidates(open_loops)
+                if candidates:
+                    processed_loop = candidates[-1]
+                    summary, evidence, artifacts, updated_loop = _execute_loop_action(action, processed_loop)
+                    open_loops = _replace_or_append_loop(open_loops, updated_loop)
+                    result = verify_result(action, summary, evidence, artifacts)
 
-        if result:
-            state.last_verified_result = result.to_dict()
+            if result:
+                state.last_verified_result = result.to_dict()
+
+            # Success — reset circuit
+            _reset_circuit()
+        except Exception as e:
+            execution_error = str(e)
+            _consecutive_errors += 1
+            if _consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                _trip_circuit()
+                execution_error = f"CIRCUIT BREAKER TRIPPED after {MAX_CONSECUTIVE_ERRORS} consecutive errors: {execution_error}"
     else:
+        # Idle cycle — prune stale loops
         state.current_actions = []
+        open_loops = prune_old_loops(open_loops)
 
     state = condense_state(queued_events, open_loops, state)
     save_event_queue(queued_events)
@@ -157,6 +224,8 @@ def process_once() -> Dict[str, Any]:
         "state": state.to_dict(),
         "actions": [action.to_dict() for action in actions],
         "result": result.to_dict() if result else None,
+        "error": execution_error,
+        "circuit_open": _circuit_open,
     }
     write_json(RUNS_DIR / f"run-{run_stamp}.json", payload)
     write_json(RUNS_DIR / "last_run.json", payload)

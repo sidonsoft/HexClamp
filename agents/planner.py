@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-from typing import List
-from uuid import uuid4
-
-from models import Action, Event, OpenLoop
-from validate import validate_payload
-
-
 from datetime import datetime, timezone
 from typing import List, Tuple
 from uuid import uuid4
@@ -172,23 +165,51 @@ def _build_action(action_type: str, goal: str, inputs: list[str], executor: str,
 def classify_text(text: str) -> str:
     normalized = text.lower()
     
-    # Code-related patterns (highest priority)
-    code_patterns = ["create function", "create a function", "def ", "class ", "implement", 
-                     "write code", "python", "bug fix", "fix bug", "refactor", "script"]
-    if any(token in normalized for token in code_patterns):
+    # System/admin control messages (highest priority — check first)
+    system_patterns = [
+        "reload", "restart", "reset", "shutdown", "kill", "abort",
+        "pause loop", "halt", "emergency", "circuit breaker",
+        "bootstrap", "init", "reinitialize", "flush", "clear cache",
+        "set mode", "set state", "update config", "change policy",
+    ]
+    if any(token in normalized for token in system_patterns):
+        return "system"
+
+    # Specific filename / extension patterns (very strong code signal)
+    # Check for .py extension or specific file references
+    if ".py" in text or any(ext in text for ext in [".yaml", ".json", ".sh", ".md"]) and any(
+       kw in normalized for kw in ["edit", "modify", "fix", "create", "update", "add", "remove", "refactor", "implement"]
+    ):
         return "code"
     
-    # General code keywords (check after specific patterns)
-    if any(token in normalized for token in ["code", "python", "bug", "fix", "build", "refactor", "script", ".py", "utils", "module"]):
+    # Longer/specific code patterns first (most specific → least specific)
+    code_specific = [
+        "create function", "create a function", "define function", "write a function",
+        "implement", "write code", "fix bug", "bug fix", "refactor",
+        "create class", "define class", "write script", "python script",
+        "add to", "modify", "update file", "edit file",
+    ]
+    if any(phrase in normalized for phrase in code_specific):
+        return "code"
+    
+    # Shorter code keywords (only if no other category matched)
+    code_keywords = ["def ", "class ", "import ", "from ", "async ", "await "]
+    if any(token in normalized for token in code_keywords):
         return "code"
     
     # Browser patterns
-    if any(token in normalized for token in ["browser", "click", "page", "site", "login", "navigate", "web", "url", "screenshot"]):
+    browser_patterns = [
+        "browser", "click", "page", "site", "login", "navigate",
+        "web", "url", "screenshot", "scroll", "hover", "submit form",
+    ]
+    if any(token in normalized for token in browser_patterns):
         return "browser"
     
-    # Messaging patterns (lowest priority - must be explicit communication)
-    messaging_patterns = ["send message", "send a message", "reply to", "telegram message", 
-                          "email user", "send email", "notify"]
+    # Messaging patterns
+    messaging_patterns = [
+        "send message", "send a message", "reply to", "telegram message",
+        "email user", "send email", "notify", "slack", "discord message",
+    ]
     if any(token in normalized for token in messaging_patterns):
         return "message"
         
@@ -272,12 +293,6 @@ def _action_for_loop(loop: OpenLoop) -> Action:
         "research",
         "The open loop gains a concrete next-step note with evidence or a terminal status",
     )
-
-
-def rank_open_loops(open_loops: List[OpenLoop]) -> List[OpenLoop]:
-    """Rank actionable loops with most urgent first."""
-    actionable = [loop for loop in open_loops if loop.status in {"open", "blocked"}]
-    return sorted(actionable, key=_calculate_urgency_score)
 
 
 def plan_next_actions(queued_events: List[Event], open_loops: List[OpenLoop]) -> List[Action]:

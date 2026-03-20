@@ -73,6 +73,41 @@ def _write_code_task_artifacts(action: Action, title: str, source_text: str, mod
     return [str(brief_path.relative_to(BASE)), str(record_path.relative_to(BASE))]
 
 
+def _load_policies() -> dict:
+    """Load policies.yaml if present."""
+    policies_path = BASE / "config" / "policies.yaml"
+    if policies_path.exists():
+        import yaml
+        with open(policies_path, "r") as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+
+def _quality_gate_changed_files(changed_files: list[str], workspace_root: Path) -> tuple[list[str], list[str]]:
+    """
+    Run py_compile on each changed .py file and collect evidence.
+    Returns (syntax_ok_files, syntax_failures).
+    """
+    evidence = []
+    failures = []
+    for file_path_str in changed_files:
+        if not file_path_str.endswith(".py"):
+            continue
+        file_path = Path(file_path_str)
+        # Try workspace-relative path
+        if not file_path.is_absolute():
+            file_path = workspace_root / file_path
+        if not file_path.exists():
+            continue
+        passed, msg = _run_python_test(file_path)
+        if passed:
+            evidence.append(f"py_compile:ok:{file_path.name}")
+        else:
+            failures.append(f"py_compile:fail:{file_path.name}:{msg}")
+            evidence.append(f"py_compile:fail:{file_path.name}")
+    return evidence, failures
+
+
 def _run_python_test(file_path: Path) -> tuple[bool, str]:
     """Run Python file with basic syntax check and return (passed, output)."""
     try:
@@ -273,6 +308,11 @@ def execute_code_for_event(action: Action, event: Event, workspace_root: Path | 
     # Spawn real coding agent
     agent_result = _spawn_coding_agent(text, workdir)
     
+    # Quality gate: run py_compile on changed .py files
+    py_evidence, py_failures = _quality_gate_changed_files(
+        agent_result.get("changed_files", []), workspace_root
+    )
+    
     # Record execution results
     execution_record = {
         "action_id": action.id,
@@ -290,8 +330,9 @@ def execute_code_for_event(action: Action, event: Event, workspace_root: Path | 
     evidence.extend(agent_result.get("evidence", []))
     if agent_result.get("changed_files"):
         evidence.extend(agent_result["changed_files"])
+    evidence.extend(py_evidence)
     
-    # Determine status based on agent results
+    # Determine status based on agent results + quality gate
     if agent_result.get("fallback"):
         # No agent available - create stub instead
         stub_file = workdir / "generated.py"
@@ -306,6 +347,11 @@ def execute_code_for_event(action: Action, event: Event, workspace_root: Path | 
         next_step = f"No coding agent available. Stub created at {stub_file.name}"
         summary = f"Blocked: {agent_result['error']}. Created stub instead."
         evidence.append(str(stub_file))
+    elif py_failures:
+        # Quality gate: syntax errors found
+        loop_status = "blocked"
+        next_step = f"Syntax error in changed files: {'; '.join(py_failures)}"
+        summary = f"Agent succeeded but quality gate failed: {py_failures[0]}"
     elif agent_result["success"]:
         changed_count = len(agent_result.get("changed_files", []))
         loop_status = "resolved" if changed_count > 0 else "open"
@@ -315,6 +361,17 @@ def execute_code_for_event(action: Action, event: Event, workspace_root: Path | 
         loop_status = "blocked"
         next_step = f"Agent failed: {agent_result.get('error', 'unknown error')}"
         summary = f"Agent execution failed: {agent_result.get('error', 'unknown')}"
+    
+    # Check verification.required_for for code — mark partial if no py_compile evidence
+    policies = _load_policies()
+    required_for = policies.get("verification", {}).get("required_for", [])
+    has_py_compile_evidence = any("py_compile:" in e for e in evidence)
+    result_status = "success"
+    follow_ups = []
+    if "code" in required_for and not has_py_compile_evidence:
+        result_status = "partial"
+        follow_ups.append("Quality gate: verification.required_for includes 'code' but no py_compile evidence found")
+        evidence.append("quality_gate:partial:no_py_compile_evidence")
     
     artifact = _write_change(action, summary)
     
@@ -652,6 +709,11 @@ def execute_code_for_loop(action: Action, loop: OpenLoop, workspace_root: Path |
     # Spawn real coding agent
     agent_result = _spawn_coding_agent(loop.title, workdir)
     
+    # Quality gate: run py_compile on changed .py files
+    py_evidence, py_failures = _quality_gate_changed_files(
+        agent_result.get("changed_files", []), workspace_root
+    )
+    
     # Create task artifacts
     code_artifacts = _write_code_task_artifacts(action, loop.title, loop.title, "loop")
     
@@ -672,12 +734,18 @@ def execute_code_for_loop(action: Action, loop: OpenLoop, workspace_root: Path |
     evidence.extend(agent_result.get("evidence", []))
     if agent_result.get("changed_files"):
         evidence.extend(agent_result["changed_files"])
+    evidence.extend(py_evidence)
     
-    # Determine status based on agent results
+    # Determine status based on agent results + quality gate
     if agent_result.get("fallback"):
         loop.status = "blocked"
         loop.next_step = f"No coding agent available: {agent_result['error']}"
         summary = f"Loop '{loop.title}' blocked: {agent_result['error']}"
+    elif py_failures:
+        # Quality gate: syntax errors found
+        loop.status = "blocked"
+        loop.next_step = f"Syntax error in changed files: {'; '.join(py_failures)}"
+        summary = f"Loop '{loop.title}' blocked by quality gate: {py_failures[0]}"
     elif agent_result["success"]:
         changed_count = len(agent_result.get("changed_files", []))
         if changed_count > 0:
@@ -692,6 +760,13 @@ def execute_code_for_loop(action: Action, loop: OpenLoop, workspace_root: Path |
         loop.status = "blocked"
         loop.next_step = f"Agent failed: {agent_result.get('error', 'unknown error')}"
         summary = f"Loop '{loop.title}' blocked by agent failure: {agent_result.get('error', 'unknown')}"
+    
+    # Check verification.required_for for code — mark partial if no py_compile evidence
+    policies = _load_policies()
+    required_for = policies.get("verification", {}).get("required_for", [])
+    has_py_compile_evidence = any("py_compile:" in e for e in evidence)
+    if "code" in required_for and not has_py_compile_evidence:
+        evidence.append("quality_gate:partial:no_py_compile_evidence")
     
     artifact = _write_change(action, summary)
     
