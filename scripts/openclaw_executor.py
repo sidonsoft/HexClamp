@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-BASE = Path.home() / ".openclaw" / "workspace" / "hydra-claw-loop"
+BASE = Path.home() / ".openclaw" / "workspace" / "hexclamp"
 RUNS_DIR = BASE / "runs"
 
 
@@ -144,7 +144,7 @@ def generate_execution_plan() -> dict:
 def print_execution_plan(plan: dict):
     """Print execution plan in a readable format."""
     print("=" * 60)
-    print("HYDRA-CLAW-LOOP EXECUTION PLAN")
+    print("HEXCLAMP EXECUTION PLAN")
     print("=" * 60)
     print(f"\nFound {plan['pending_count']} pending task(s)")
     print(f"Generated at: {plan['timestamp']}")

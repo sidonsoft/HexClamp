@@ -11,11 +11,11 @@ from executors import _parse_message_task
 class MessageParserTests(unittest.TestCase):
     def test_recipient_regression_does_not_parse_literal_to(self):
         task = _parse_message_task(
-            "send telegram message to @sidonsoft: test message from hydra-claw-loop"
+            "send telegram message to @sidonsoft: test message from hexclamp"
         )
         self.assertEqual(task["channel"], "telegram")
         self.assertEqual(task["recipient"], "@sidonsoft")
-        self.assertEqual(task["content"], "test message from hydra-claw-loop")
+        self.assertEqual(task["content"], "test message from hexclamp")
         self.assertNotEqual(task["recipient"], "to")
 
     def test_plain_recipient_without_handle(self):

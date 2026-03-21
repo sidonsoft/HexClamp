@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Execute pending browser tasks for hydra-claw-loop.
+"""Execute pending browser tasks for hexclamp.
 
 This script is designed to be called BY OpenClaw (not standalone) to execute
 browser tasks using the browser tool.
 
 Usage from OpenClaw:
-    Read this script and execute pending browser tasks from hydra-claw-loop.
+    Read this script and execute pending browser tasks from hexclamp.
 """
 
 import json
@@ -15,7 +15,7 @@ from pathlib import Path
 
 def find_pending_browser_tasks():
     """Find all pending browser tasks in the runs directory."""
-    base_dir = Path.home() / ".openclaw" / "workspace" / "hydra-claw-loop"
+    base_dir = Path.home() / ".openclaw" / "workspace" / "hexclamp"
     browser_tasks_dir = base_dir / "runs" / "browser_tasks"
     
     if not browser_tasks_dir.exists():

@@ -23,7 +23,7 @@ def _fresh_browser_patches(tmp: Path):
 
     runtime_json_defaults = {
         state_dir / "current_state.json": {
-            "goal": "Keep hydra-claw-loop coherent and progressing",
+            "goal": "Keep hexclamp coherent and progressing",
             "active_context": [],
             "recent_events": [],
             "current_actions": [],

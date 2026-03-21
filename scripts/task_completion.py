@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Task completion flow for hydra-claw-loop.
+"""Task completion flow for hexclamp.
 
 Scans pending tasks across all executors and executes them via OpenClaw tools.
 Updates task status and loop state based on verification results.
@@ -250,13 +250,13 @@ def complete_task(task: dict, dry_run: bool = False):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Complete pending hydra-claw-loop tasks")
+    parser = argparse.ArgumentParser(description="Complete pending hexclamp tasks")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be done without making changes")
     parser.add_argument("--executor", choices=["code", "browser", "messaging"], help="Filter by executor type")
     args = parser.parse_args()
     
     print("=" * 60)
-    print("HYDRA-CLAW-LOOP TASK COMPLETION FLOW")
+    print("HEXCLAMP TASK COMPLETION FLOW")
     print("=" * 60)
     
     if args.dry_run:

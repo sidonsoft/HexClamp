@@ -108,7 +108,7 @@ def _is_loop_stale(loop: OpenLoop) -> bool:
 def load_current_state() -> CurrentState:
     data = read_json(CURRENT_STATE_PATH)
     if not data:
-        return CurrentState(goal="Keep hydra-claw-loop coherent and progressing")
+        return CurrentState(goal="Keep hexclamp coherent and progressing")
     return CurrentState(**data)
 
 

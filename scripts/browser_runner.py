@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Browser automation helper for hydra-claw-loop.
+"""Browser automation helper for hexclamp.
 
 This script runs browser automation tasks and returns structured results.
 It's called by the browser executor to perform actual browser operations.
@@ -112,7 +112,7 @@ def run_browser_task(task: dict, workdir: Path) -> dict:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Browser automation for hydra-claw-loop")
+    parser = argparse.ArgumentParser(description="Browser automation for hexclamp")
     parser.add_argument("--task", required=True, help="Task description text")
     parser.add_argument("--workdir", required=True, help="Working directory for artifacts")
     parser.add_argument("--output", required=True, help="Output JSON file path")

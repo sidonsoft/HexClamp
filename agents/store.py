@@ -15,7 +15,7 @@ SCHEMAS_DIR = BASE / "schemas"
 
 RUNTIME_JSON_DEFAULTS = {
     STATE_DIR / "current_state.json": {
-        "goal": "Keep hydra-claw-loop coherent and progressing",
+        "goal": "Keep hexclamp coherent and progressing",
         "active_context": [],
         "recent_events": [],
         "current_actions": [],

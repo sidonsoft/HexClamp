@@ -1,16 +1,8 @@
-# hydra-claw-loop
+# HexClamp
 
-A practical scaffold for an inspectable autonomous agent loop.
+**v1.0** — An inspectable autonomous agent loop scaffold.
 
-## Goal
-
-Build a system that stays coherent over time by separating:
-- **observation** — normalize raw inputs into events
-- **condensation** — compress events + state into working context
-- **planning** — rank open loops and select next actions
-- **execution** — run tasks through specialized executors
-- **verification** — validate claimed results before accepting them
-- **persistence** — file-backed state that survives restarts
+HexClamp separates observation, condensation, planning, execution, verification, and persistence into distinct, auditable stages. File-backed state means every decision, every action, and every result survives restarts and is inspectable at any time.
 
 ## Core loop
 
@@ -18,7 +10,7 @@ Build a system that stays coherent over time by separating:
 Observe → Condense → Plan → Execute → Verify → Persist
 ```
 
-Each cycle loads current state, generates actions from ranked open loops, executes one action, verifies the result, and persists the updated state. The loop is fully file-backed — no invisible prompt state.
+Each cycle loads current state, generates actions from ranked open loops, executes one action, verifies the result, and persists the updated state. Everything is file-backed — no invisible prompt state.
 
 ## Design principles
 
@@ -60,116 +52,68 @@ prompts/
   condenser.md    # Role prompt for the condenser
   planner.md      # Role prompt for the planner
   verifier.md     # Role prompt for the verifier
-  # executors/*.md — per-executor role prompts (add as needed)
 ```
 
-## Executor status
+## Executors
 
-| Executor   | Status | Notes |
-|------------|--------|-------|
-| research   | ✅ Active | Grounded summaries → `state/recent_changes.md` |
-| code       | ✅ Active | Coding agent tasks → runs in target workspace |
-| browser    | ✅ Active | Playwright headless Chromium — navigates, screenshots, extracts text |
-| messaging  | ✅ Active | Telegram Bot API — auto-send or sentinel-approved; handles 403/400/429 |
-| system     | ⚠️ Removed | Removed — no executor branch, reduces attack surface |
+| Executor  | Status | Notes |
+|-----------|--------|-------|
+| research  | ✅ Active | Grounded summaries → `state/recent_changes.md` |
+| code      | ✅ Active | Coding agent briefs → runs in target workspace |
+| browser   | ✅ Active | Playwright headless Chromium — navigates, screenshots, extracts text |
+| messaging | ✅ Active | Telegram Bot API — auto-send or sentinel-approved; handles 403/400/429 |
+| system    | ❌ Removed | No executor branch — reduces attack surface |
 
-## Code review findings — all resolved
-
-All 11 findings from the Codex architecture review are fixed and merged:
-
-| # | Finding | Status |
-|---|---------|--------|
-| #6 | Planner/executor urgency index mismatch | ✅ Fixed |
-| #7 | Code executor ran in scratch dir, not workspace | ✅ Fixed |
-| #8 | Events lost on executor/verification failure | ✅ Fixed |
-| #9 | Non-atomic JSON writes (fcntl deadlock) | ✅ Fixed |
-| #10 | Pending task files counted as completion evidence | ✅ Fixed |
-| #11 | Prompt injection risk (untrusted chat → coding agents) | ⚠️ Opt-in gate |
-| #12 | System action classified with no executor branch | ✅ Fixed (removed) |
-| #13 | Policy flags and approval not enforced | ✅ Fixed |
-| #14 | Invalid datetimes silently fell back to "now" | ✅ Fixed |
-| #15 | Schema registry rebuilt from disk on every call | ✅ Fixed |
-| #16 | Browser URL only encoded spaces | ✅ Fixed (full URL validation: schemes, IPv4/IPv6 private ranges, octet range checks) |
-| #17 | Messaging executor created artifacts but never delivered | ✅ Fixed (Telegram Bot API direct, sentinel approval) |
-
-**Issue #11 note:** Prompt injection risk is mitigated by an opt-in `require_approval` gate in `config/policies.yaml`. Set `policies.code.require_approval: true` to block autonomous code execution when untrusted chat input can reach the loop. The approval gate blocks the external agent from spawning until a human explicitly approves.
-
-## Testing
+## Quick start
 
 ```bash
-make test
-# or
-python3 -m unittest discover -s tests -v
-```
-
-**Automated test coverage:**
-- `test_bootstrap.py` — runtime bootstrap tests
-- `test_browser_executor.py` — browser navigation, URL validation, error handling
-- `test_integration.py` — end-to-end enqueue → plan → execute → verify integration tests
-- `test_message_parser.py` — message normalization regression tests
-- `test_messaging_delivery.py` — TelegramDeliveryAgent result handling
-- `test_planner.py` — loop ranking and urgency scoring tests
-- `test_task_completion.py` — task artifact verification tests
-
-**Total: 47 tests, all passing**
-
-## CI
-
-GitHub Actions runs syntax checks and the full test suite on every push to `main` and on all pull requests.
-
-```yaml
-# .github/workflows/ci.yml
-on: [push, pull_request]
-jobs:
-  test:
-    - python setup + requirements
-    - syntax check: python -m py_compile on all .py files
-    - pytest tests/ -v --tb=short
-  lint:
-    - ruff check .
-```
-
-## Environment variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Yes (prod) | dev fallback | Bot token for Telegram delivery. Set before running in production. |
-
-> **Security note:** Do not commit production tokens to source control. Use environment variables or a secrets manager.
-
-## Runtime bootstrap
-
-Runtime state (`state/current_state.json`, `state/event_queue.json`, `state/open_loops.json`) is created automatically on first run.
-
-Manual bootstrap:
-
-```bash
+# Bootstrap runtime state
 python3 agents/loop.py init
-# or
-python3 scripts/bootstrap_runtime.py
-```
 
-Generated runtime files (`runs/`, `state/current_state.json`, `state/event_queue.json`, `state/open_loops.json`, `state/recent_changes.md`) are excluded from source control — see `.gitignore`.
-
-## Running the loop
-
-```bash
-# Initialize / enqueue a task
+# Enqueue tasks
 python3 agents/loop.py enqueue "investigate the auth bug"
 python3 agents/loop.py enqueue "review PR #42"
 
 # Run one cycle
 python3 agents/loop.py
 
-# Interactive repl
-python3 agents/loop.py repl
+# Run tests
+make test
 ```
+
+## Environment variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `TELEGRAM_BOT_TOKEN` | Yes (prod) | dev fallback | Bot token for Telegram delivery. Do not commit production tokens. |
+
+## Testing
+
+47 tests — all passing:
+
+```
+python3 -m unittest discover -s tests -v
+```
+
+| Test file | What it covers |
+|-----------|---------------|
+| `test_bootstrap.py` | Runtime bootstrap |
+| `test_browser_executor.py` | Navigation, URL validation, error handling |
+| `test_integration.py` | End-to-end enqueue → plan → execute → verify |
+| `test_message_parser.py` | Message normalization |
+| `test_messaging_delivery.py` | TelegramDeliveryAgent result handling |
+| `test_planner.py` | Loop ranking and urgency scoring |
+| `test_task_completion.py` | Task artifact verification |
+
+## CI
+
+GitHub Actions runs syntax checks and the full test suite on every push to `main` and on all pull requests.
 
 ## Adding a new executor
 
-1. Add the executor function to `agents/executors.py` (e.g., `execute_<name>_for_loop`)
+1. Add the executor function to `agents/executors.py`
 2. Add the action type to `schemas/action.schema.json` enum
-3. Add a role prompt in `prompts/executors/<name>.md`
-4. Add `verification.required_for` entry in `config/policies.yaml` if the executor requires evidence
+3. Create a role prompt in `prompts/<name>.md`
+4. Add `verification.required_for` entry in `config/policies.yaml` if evidence is needed
 5. Add tests in `tests/`
 6. Update this README's executor status table

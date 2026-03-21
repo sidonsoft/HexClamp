@@ -44,7 +44,7 @@ class IntegrationTests(unittest.TestCase):
         runtime_json_defaults = {
             state_dir
             / "current_state.json": {
-                "goal": "Keep hydra-claw-loop coherent and progressing",
+                "goal": "Keep hexclamp coherent and progressing",
                 "active_context": [],
                 "recent_events": [],
                 "current_actions": [],
@@ -264,7 +264,7 @@ class IntegrationTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     current_state["goal"],
-                    "Keep hydra-claw-loop coherent and progressing",
+                    "Keep hexclamp coherent and progressing",
                 )
                 self.assertIn(loops[0]["id"], current_state["open_loops"])
                 self.assertEqual(current_state["recent_events"], [])

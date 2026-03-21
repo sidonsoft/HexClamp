@@ -1,11 +1,11 @@
-# Contributing to hydra-claw-loop
+# Contributing to HexClamp
 
 ## Getting started
 
 ```bash
 # Clone
-git clone https://github.com/sidonsoft/hydra-claw-loop-recovered
-cd hydra-claw-loop-recovered
+git clone https://github.com/sidonsoft/HexClamp
+cd HexClamp
 
 # Bootstrap runtime state
 python3 agents/loop.py init

@@ -160,7 +160,7 @@ def _spawn_coding_agent(task: str, workdir: Path, agent_id: str = "codex") -> di
     Spawn a real coding agent to execute the task.
     Returns execution result with evidence.
     
-    Note: This function is called from within the hydra-claw-loop, 
+    Note: This function is called from within the hexclamp, 
     which runs in a separate process. The agent spawn happens via
     the OpenClaw gateway, not direct subprocess.
     """

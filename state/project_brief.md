@@ -2,7 +2,7 @@
 
 ## What this is
 
-Hydra-Claw-Loop is an inspectable autonomous agent loop scaffold that separates observation, condensation, planning, execution, verification, and persistence. File-backed state makes all progress auditable and recoverable.
+HexClamp is an inspectable autonomous agent loop scaffold that separates observation, condensation, planning, execution, verification, and persistence. File-backed state makes all progress auditable and recoverable.
 
 ## Why it exists
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Browser automation helper for hydra-claw-loop.
+"""Browser automation helper for hexclamp.
 
 This script is meant to be called BY OpenClaw (not as a subprocess) to execute
 browser tasks. It writes task files that the main agent processes.
@@ -29,7 +29,7 @@ def extract_urls(text: str) -> list[str]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Browser task processor for hydra-claw-loop")
+    parser = argparse.ArgumentParser(description="Browser task processor for hexclamp")
     parser.add_argument("--task-file", required=True, help="JSON task file to process")
     parser.add_argument("--result-file", required=True, help="Where to write results")
     
