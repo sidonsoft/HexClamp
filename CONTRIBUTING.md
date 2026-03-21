@@ -49,7 +49,7 @@ Prefixes: `fix:`, `feat:`, `chore:`, `docs:`, `test:`.
 
 1. **Schema** — add the action type to `schemas/action.schema.json`:
    ```json
-   "enum": ["research", "code", "browser", "message", "system", "wait", "<new_type>"]
+   "enum": ["research", "code", "browser", "message", "wait", "<new_type>"]
    ```
 
 2. **Executor function** — add to `agents/executors.py`:

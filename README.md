@@ -60,7 +60,7 @@ prompts/
   condenser.md    # Role prompt for the condenser
   planner.md      # Role prompt for the planner
   verifier.md     # Role prompt for the verifier
-  executors/      # Per-executor role prompts
+  # executors/*.md — per-executor role prompts (add as needed)
 ```
 
 ## Executor status
@@ -103,11 +103,15 @@ python3 -m unittest discover -s tests -v
 ```
 
 **Automated test coverage:**
+- `test_bootstrap.py` — runtime bootstrap tests
+- `test_browser_executor.py` — browser navigation, URL validation, error handling
+- `test_integration.py` — end-to-end enqueue → plan → execute → verify integration tests
 - `test_message_parser.py` — message normalization regression tests
+- `test_messaging_delivery.py` — TelegramDeliveryAgent result handling
 - `test_planner.py` — loop ranking and urgency scoring tests
 - `test_task_completion.py` — task artifact verification tests
-- `test_bootstrap.py` — runtime bootstrap tests
-- `test_integration.py` — end-to-end enqueue → plan → task artifact integration test
+
+**Total: 47 tests, all passing**
 
 ## CI
 

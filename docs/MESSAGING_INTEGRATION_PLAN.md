@@ -1,5 +1,11 @@
 # Messaging Integration Plan
 
+## Decision (resolved)
+
+> **Decided: Option B — Telegram Bot API direct.** Implemented in PR #23 (`agents/delivery.py`, `TelegramDeliveryAgent`). Uses `TELEGRAM_BOT_TOKEN` env var. Sentinel approval flow wired into `execute_message_for_loop`. Open questions below are noted as resolved or deferred.
+
+---
+
 ## Decision
 
 **Telegram focus.** Uses the existing OpenClaw bot (@AdellClawBot, token `8645335498:AAHYlB1Uf6qQWoZoU7o16Tm-8c2rhWUS6A0`).  
@@ -115,12 +121,12 @@ execution.json updated with: {sent: true, message_id: "...", sent_at: "..."}
 
 ---
 
-## Open Questions
+## Open Questions (resolved/deferred)
 
-1. **Option A or B?** Direct Bot API (B) is simpler. OpenClaw sessions API (A) reuses existing auth. Which does ItBurnz prefer?
-2. **Default recipient:** When the message doesn't specify a recipient, who gets it? The bot admin?
-3. **Message ID tracking:** Should the loop wait for Telegram's `message_id` response before marking resolved?
-4. **Approval notification:** Should the bot DM the operator when a message needs approval?
+1. ~~Option A or B?~~ → **Option B (Bot API direct)** — simpler, no separate dispatcher needed
+2. **Default recipient:** Deferred — currently requires explicit `recipient` in message; no default
+3. **Message ID tracking:** Yes — `DeliveryResult` includes `message_id` on success
+4. **Approval notification:** Deferred — no notification on approval needed; operator monitors `runs/messaging_tasks/`
 
 ---
 

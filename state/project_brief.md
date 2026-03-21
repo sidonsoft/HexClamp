@@ -14,7 +14,7 @@ The loop is organized around six distinct responsibilities (observe → condense
 
 ## Current phase
 
-**Near v1.0** — core loop fully implemented and reviewed, CI/CD in place, all major code review findings resolved. Browser executor live. Remaining gap: real messaging delivery integration.
+**v1.0** — all four executors implemented and reviewed, CI/CD in place, all code review findings resolved. Messaging delivery wired (Telegram Bot API direct, sentinel approval).
 
 ## Operating constraints
 
@@ -33,14 +33,13 @@ The loop is organized around six distinct responsibilities (observe → condense
 - Schema validation with disk-backed caching
 - GitHub Actions CI: syntax checks + pytest + ruff linting on every push/PR
 - Circuit breaker with persisted state (survives restarts)
-- End-to-end integration tests (39 tests passing)
+- End-to-end integration tests (47 tests passing)
 
 ## What's not yet
 
 - `wait` action type (declared in schema, no executor path)
-- `messaging` executor: real delivery integration (draft/send with approval gate works; delivery to real endpoints not yet wired)
 - Status dashboard (visual progress/loop overview)
-- End-to-end test coverage for the full observe → execute → verify cycle with real agents
+- End-to-end test coverage with real coding agents (current E2E tests use mocks/stubs)
 
 ## v1.0 scope
 
