@@ -22,12 +22,49 @@ from executors import (
 WORKSPACE_ROOT = Path.home() / ".openclaw" / "workspace"
 from models import CurrentState, Event, OpenLoop
 from observer import observe_chat_message
-from planner import plan_next_actions, rank_open_loops, STALE_THRESHOLD_HOURS
+from store import RUNS_DIR, STATE_DIR, append_json_array, bootstrap_runtime_state, ensure_dirs, read_json, write_json
 
 MAX_CONSECUTIVE_ERRORS = 3
 _circuit_open = False
 _consecutive_errors = 0
-from store import RUNS_DIR, STATE_DIR, append_json_array, bootstrap_runtime_state, ensure_dirs, read_json, write_json
+
+CIRCUIT_BREAKER_PATH = STATE_DIR / "circuit_breaker.json"
+
+
+def _load_circuit_breaker_state() -> None:
+    """Load circuit breaker state from disk, if available."""
+    global _circuit_open, _consecutive_errors
+    try:
+        data = read_json(CIRCUIT_BREAKER_PATH, default=None)
+        if data is not None:
+            _circuit_open = bool(data.get("open", False))
+            _consecutive_errors = int(data.get("consecutive_errors", 0))
+    except Exception:
+        pass  # Ignore corrupt state files; start fresh
+
+
+def _persist_circuit_breaker_state() -> None:
+    """Persist circuit breaker state to disk."""
+    write_json(
+        CIRCUIT_BREAKER_PATH,
+        {"open": _circuit_open, "consecutive_errors": _consecutive_errors},
+    )
+
+
+def _parse_datetime(dt_str: str) -> datetime:
+    """Parse ISO datetime string, raising on failure instead of silently falling back."""
+    if not dt_str:
+        raise ValueError("Empty datetime string")
+    if dt_str.endswith('Z'):
+        dt_str = dt_str[:-1] + '+00:00'
+    try:
+        return datetime.fromisoformat(dt_str)
+    except ValueError:
+        raise ValueError(f"Invalid datetime string: {dt_str!r}")
+
+
+from planner import plan_next_actions, rank_open_loops, STALE_THRESHOLD_HOURS
+
 from validate import validate_payload
 from verifier import verify_result
 
@@ -41,12 +78,14 @@ def _reset_circuit():
     global _circuit_open, _consecutive_errors
     _circuit_open = False
     _consecutive_errors = 0
+    _persist_circuit_breaker_state()
 
 
 def _trip_circuit():
     global _circuit_open, _consecutive_errors
     _circuit_open = True
     _consecutive_errors = 0
+    _persist_circuit_breaker_state()
 
 
 def prune_old_loops(open_loops: List[OpenLoop]) -> List[OpenLoop]:
@@ -64,18 +103,6 @@ def _is_loop_stale(loop: OpenLoop) -> bool:
     now = datetime.now(timezone.utc)
     hours_since = (now - updated).total_seconds() / 3600
     return hours_since > STALE_THRESHOLD_HOURS
-
-
-def _parse_datetime(dt_str: str) -> datetime:
-    """Parse ISO datetime string, raising on failure instead of silently falling back."""
-    if not dt_str:
-        raise ValueError("Empty datetime string")
-    if dt_str.endswith('Z'):
-        dt_str = dt_str[:-1] + '+00:00'
-    try:
-        return datetime.fromisoformat(dt_str)
-    except ValueError:
-        raise ValueError(f"Invalid datetime string: {dt_str!r}")
 
 
 def load_current_state() -> CurrentState:
@@ -250,6 +277,10 @@ def process_once() -> Dict[str, Any]:
     write_json(RUNS_DIR / f"run-{run_stamp}.json", payload)
     write_json(RUNS_DIR / "last_run.json", payload)
     return payload
+
+
+# Load persisted circuit breaker state on startup
+_load_circuit_breaker_state()
 
 
 if __name__ == "__main__":

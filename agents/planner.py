@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import List
 from uuid import uuid4
 
+from loop import _parse_datetime
 from models import Action, Event, OpenLoop
 from validate import validate_payload
 
@@ -17,18 +18,6 @@ EXECUTOR_WEIGHTS = {
     "research": 1,  # Research is lower priority
 }
 STALE_THRESHOLD_HOURS = 24  # Consider loops stale after 24 hours without update
-
-
-def _parse_datetime(dt_str: str) -> datetime:
-    """Parse ISO datetime string, handling various formats."""
-    if not dt_str:
-        raise ValueError("Empty datetime string")
-    if dt_str.endswith('Z'):
-        dt_str = dt_str[:-1] + '+00:00'
-    try:
-        return datetime.fromisoformat(dt_str)
-    except ValueError:
-        raise ValueError(f"Invalid datetime string: {dt_str!r}")
 
 
 def _calculate_loop_age(loop: OpenLoop) -> float:
