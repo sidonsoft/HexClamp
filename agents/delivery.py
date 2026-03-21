@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import requests
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional, cast
 
 BOT_TOKEN = os.environ.get(
     "TELEGRAM_BOT_TOKEN",
@@ -36,7 +36,7 @@ class TelegramDeliveryAgent:
             DeliveryResult with success, message_id, error, recipient
         """
         # Resolve username to chat_id if needed
-        chat_id = recipient
+        chat_id: str | int | None = recipient
         if recipient.startswith("@"):
             chat_id = self._resolve_username(recipient)
             if chat_id is None:
@@ -47,6 +47,7 @@ class TelegramDeliveryAgent:
                 )
 
         # Send the message
+        assert chat_id is not None
         return self._send_message(
             chat_id, content, parse_mode, original_recipient=recipient
         )
@@ -64,7 +65,8 @@ class TelegramDeliveryAgent:
             if not data.get("ok"):
                 return None
 
-            return data["result"]["id"]
+            result = cast(dict[str, Any], data["result"])
+            return cast(int, result["id"])
         except requests.exceptions.RequestException:
             return None
 

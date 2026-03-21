@@ -7,6 +7,7 @@ import json
 import time
 from pathlib import Path
 from datetime import datetime, timezone
+from typing import Any, cast
 
 from models import Action, Event, OpenLoop
 from store import write_json
@@ -105,7 +106,7 @@ def _spawn_coding_agent(task: str, workdir: Path, agent_id: str = "codex") -> di
     Spawn a real coding agent to execute the task.
     Returns execution result with evidence.
     """
-    result = {
+    result: dict[str, Any] = {
         "success": False,
         "agent_id": agent_id,
         "task": task,
@@ -279,10 +280,10 @@ def execute_code_for_event(
     write_json(exec_record_path, execution_record)
     code_artifacts.append(str(exec_record_path.relative_to(base.BASE)))
 
-    evidence = [event.id, action.id]
-    evidence.extend(agent_result.get("evidence", []))
+    evidence: list[str] = [event.id, action.id]
+    evidence.extend(cast(list[str], agent_result.get("evidence", [])))
     if agent_result.get("changed_files"):
-        evidence.extend(agent_result["changed_files"])
+        evidence.extend(cast(list[str], agent_result["changed_files"]))
     evidence.extend(py_evidence)
 
     if agent_result.get("fallback"):
@@ -378,10 +379,10 @@ def execute_code_for_loop(
     write_json(exec_record_path, execution_record)
     code_artifacts.append(str(exec_record_path.relative_to(base.BASE)))
 
-    evidence = [loop.id, action.id]
-    evidence.extend(agent_result.get("evidence", []))
+    evidence: list[str] = [loop.id, action.id]
+    evidence.extend(cast(list[str], agent_result.get("evidence", [])))
     if agent_result.get("changed_files"):
-        evidence.extend(agent_result["changed_files"])
+        evidence.extend(cast(list[str], agent_result["changed_files"]))
     evidence.extend(py_evidence)
 
     if agent_result.get("fallback"):

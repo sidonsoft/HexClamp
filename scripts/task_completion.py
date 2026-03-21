@@ -14,7 +14,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 BASE = Path(__file__).parent.parent.resolve()
 RUNS_DIR = BASE / "runs"
@@ -23,7 +23,7 @@ STATE_DIR = BASE / "state"
 
 def find_pending_tasks(executor_filter: Optional[str] = None) -> list[dict]:
     """Find all pending tasks across executors."""
-    pending = []
+    pending: list[dict[str, Any]] = []
 
     executors = (
         ["code", "browser", "messaging"]
@@ -73,85 +73,88 @@ def find_pending_tasks(executor_filter: Optional[str] = None) -> list[dict]:
 
 def verify_code_task(task: dict) -> dict:
     """Verify a code task has valid outputs."""
-    result = {"verified": False, "checks": []}
+    checks: list[str] = []
+    result: dict[str, Any] = {"verified": False, "checks": checks}
 
     exec_data = task.get("execution")
 
     if not exec_data:
-        result["checks"].append("No execution record found")
+        checks.append("No execution record found")
         return result
 
     # Check for agent result
-    agent_result = exec_data.get("agent_result", {})
+    agent_result = cast(dict[str, Any], exec_data.get("agent_result", {}))
 
     # Verify 1: Agent completed successfully
     if agent_result.get("success"):
-        result["checks"].append("✓ Agent execution successful")
+        checks.append("✓ Agent execution successful")
     else:
-        result["checks"].append("✗ Agent execution failed")
+        checks.append("✗ Agent execution failed")
         return result
 
     # Verify 2: Changed files exist
-    changed_files = agent_result.get("changed_files", [])
+    changed_files = cast(list[str], agent_result.get("changed_files", []))
     if changed_files:
-        result["checks"].append(f"✓ {len(changed_files)} file(s) modified")
+        checks.append(f"✓ {len(changed_files)} file(s) modified")
 
         # Verify 3: Files actually exist
         all_exist = True
         for f in changed_files:
             if not Path(f).exists():
                 all_exist = False
-                result["checks"].append(f"✗ File not found: {f}")
+                checks.append(f"✗ File not found: {f}")
 
         if all_exist:
-            result["checks"].append("✓ All modified files exist")
+            checks.append("✓ All modified files exist")
     else:
-        result["checks"].append("⚠ No files were modified")
+        checks.append("⚠ No files were modified")
 
     # Verify 4: Syntax check passed
     if agent_result.get("verified"):
-        result["checks"].append("✓ Syntax verification passed")
+        checks.append("✓ Syntax verification passed")
         result["verified"] = True
     else:
-        result["checks"].append("✗ Syntax verification failed")
+        checks.append("✗ Syntax verification failed")
 
     return result
 
 
 def verify_browser_task(task: dict) -> dict:
     """Verify a browser task has captured evidence."""
-    result = {"verified": False, "checks": []}
+    checks: list[str] = []
+    result: dict[str, Any] = {"verified": False, "checks": checks}
 
     task_data = task["task"]
 
     # Check for screenshot
     screenshot = task_data.get("results", {}).get("screenshot")
     if screenshot and Path(screenshot).exists():
-        result["checks"].append(f"✓ Screenshot captured: {screenshot}")
+        checks.append(f"✓ Screenshot captured: {screenshot}")
         result["verified"] = True
     else:
-        result["checks"].append("✗ Screenshot not found")
+        checks.append("✗ Screenshot not found")
 
     # Check for page content
     content = task_data.get("results", {}).get("page_content")
     if content:
-        result["checks"].append("✓ Page content extracted")
+        checks.append("✓ Page content extracted")
     else:
-        result["checks"].append("⚠ No page content extracted")
+        checks.append("⚠ No page content extracted")
 
     # Check for URL evidence
     url = task_data.get("results", {}).get("url")
     if url:
-        result["checks"].append(f"✓ URL verified: {url}")
+        checks.append(f"✓ URL verified: {url}")
     else:
-        result["checks"].append("✗ URL not recorded")
+        checks.append("✗ URL not recorded")
 
     return result
 
 
 def verify_messaging_task(task: dict) -> dict:
     """Verify a messaging task was sent and confirmed."""
-    result = {"verified": False, "checks": []}
+    checks: list[str] = []
+    result: dict[str, Any] = {"verified": False, "checks": checks}
 
     task_data = task["task"]
 
@@ -159,22 +162,22 @@ def verify_messaging_task(task: dict) -> dict:
     results = task_data.get("results", {})
 
     if results.get("sent"):
-        result["checks"].append("✓ Message sent")
+        checks.append("✓ Message sent")
         result["verified"] = True
     else:
-        result["checks"].append("✗ Message not sent")
+        checks.append("✗ Message not sent")
 
     if results.get("delivery_confirmed"):
-        result["checks"].append("✓ Delivery confirmed")
+        checks.append("✓ Delivery confirmed")
     else:
-        result["checks"].append("⚠ Delivery not confirmed")
+        checks.append("⚠ Delivery not confirmed")
 
     # Check recipient
     recipient = task_data.get("parsed_task", {}).get("recipient")
     if recipient:
-        result["checks"].append(f"✓ Recipient: {recipient}")
+        checks.append(f"✓ Recipient: {recipient}")
     else:
-        result["checks"].append("✗ No recipient specified")
+        checks.append("✗ No recipient specified")
 
     return result
 

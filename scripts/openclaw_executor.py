@@ -13,7 +13,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Optional
 
 BASE = Path.home() / ".openclaw" / "workspace" / "hexclamp"
 RUNS_DIR = BASE / "runs"
@@ -21,7 +21,7 @@ RUNS_DIR = BASE / "runs"
 
 def find_pending_tasks(executor_filter: Optional[str] = None) -> list[dict]:
     """Find all pending tasks across executors."""
-    pending = []
+    pending: list[dict[str, Any]] = []
     executors = (
         ["browser", "messaging"] if executor_filter is None else [executor_filter]
     )
@@ -119,7 +119,7 @@ def generate_execution_plan() -> dict:
     """Generate an execution plan for OpenClaw."""
     pending = find_pending_tasks()
 
-    plan = {
+    plan: dict[str, Any] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "pending_count": len(pending),
         "tasks": [],

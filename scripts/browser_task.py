@@ -20,7 +20,7 @@ def extract_urls(text: str) -> list[str]:
     """Extract URLs from text."""
     url_pattern = r'https?://[^\s<>"\')\]]+[^\s<>"\')\].,;!?]'
     urls = re.findall(url_pattern, text)
-    cleaned = []
+    cleaned: list[str] = []
     for url in urls:
         url = url.rstrip(".,;!?")
         if url:
@@ -39,8 +39,8 @@ def main():
     result_path = Path(args.result_file)
 
     if not task_path.exists():
-        result = {"success": False, "error": f"Task file not found: {task_path}"}
-        result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        error_result = {"success": False, "error": f"Task file not found: {task_path}"}
+        result_path.write_text(json.dumps(error_result, indent=2), encoding="utf-8")
         return 1
 
     task = json.loads(task_path.read_text(encoding="utf-8"))
@@ -50,14 +50,15 @@ def main():
     # Extract URLs
     urls = extract_urls(text)
 
-    result = {
+    evidence: list[str] = []
+    result: dict[str, object] = {
         "success": True,
         "action_id": action_id,
         "task_text": text,
         "urls_found": urls,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "status": "pending_execution",
-        "evidence": [],
+        "evidence": evidence,
         "screenshots": [],
         "page_content": None,
         "error": None,
@@ -65,7 +66,7 @@ def main():
 
     if urls:
         result["primary_url"] = urls[0]
-        result["evidence"].append(f"url_extracted:{urls[0]}")
+        evidence.append(f"url_extracted:{urls[0]}")
 
     # Write result for OpenClaw to pick up and execute via browser tool
     result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")

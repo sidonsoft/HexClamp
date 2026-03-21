@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 BASE = Path(__file__).resolve().parents[1]
@@ -93,7 +93,7 @@ def append_json_array(path: Path, item: Any) -> list[Any]:
     path.parent.mkdir(parents=True, exist_ok=True)
     # read_json + append + write_json (atomic rename) is sufficient
     # since write_json uses temp file + os.replace (atomic on POSIX)
-    data = read_json(path, default=[])
+    data = cast(list[Any], read_json(path, default=[]))
     data.append(item)
     write_json(path, data)
     return data

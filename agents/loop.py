@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from pathlib import Path
 
@@ -110,7 +110,7 @@ def _is_loop_stale(loop: OpenLoop) -> bool:
         return True
     now = datetime.now(timezone.utc)
     hours_since = (now - updated).total_seconds() / 3600
-    return hours_since > STALE_THRESHOLD_HOURS
+    return bool(hours_since > STALE_THRESHOLD_HOURS)
 
 
 def load_current_state() -> CurrentState:
@@ -169,7 +169,7 @@ def _replace_or_append_loop(
 
 
 def _active_loop_candidates(open_loops: List[OpenLoop]) -> List[OpenLoop]:
-    return rank_open_loops(open_loops)
+    return cast(List[OpenLoop], rank_open_loops(open_loops))
 
 
 def _execute_event_action(action, event: Event):
@@ -205,7 +205,7 @@ def process_once() -> Dict[str, Any]:
 
     # Circuit breaker: return early if open
     if _circuit_open:
-        payload = {
+        payload: Dict[str, Any] = {
             "processed_event": None,
             "processed_loop": None,
             "state": None,
