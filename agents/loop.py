@@ -5,8 +5,10 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, cast
 
+import yaml
 from pathlib import Path
 
+import store
 from condenser import condense_state
 from executors import (
     execute_browser_for_event,
@@ -80,6 +82,23 @@ from verifier import verify_result
 EVENT_QUEUE_PATH = STATE_DIR / "event_queue.json"
 OPEN_LOOPS_PATH = STATE_DIR / "open_loops.json"
 CURRENT_STATE_PATH = STATE_DIR / "current_state.json"
+
+
+def _load_yaml(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+def _executor_enabled(executor: str) -> bool:
+    enabled = executor != "system"
+    for config_path in (store.BASE / "config" / "agents.yaml", store.BASE / "config" / "policies.yaml"):
+        data = _load_yaml(config_path)
+        value = data.get("executors", {}).get(executor, {}).get("enabled")
+        if value is not None:
+            enabled = enabled and bool(value)
+    return enabled
 
 
 def _reset_circuit():
@@ -173,30 +192,26 @@ def _active_loop_candidates(open_loops: List[OpenLoop]) -> List[OpenLoop]:
 
 
 def _execute_event_action(action, event: Event):
+    if not _executor_enabled(action.executor):
+        raise ValueError(f"{action.executor} executor is disabled in config")
     if action.executor == "code":
         return execute_code_for_event(action, event, workspace_root=WORKSPACE_ROOT)
     if action.executor == "browser":
         return execute_browser_for_event(action, event)
     if action.executor == "messaging":
         return execute_message_for_event(action, event)
-    if action.executor == "system":
-        raise ValueError(
-            "system executor is disabled (enabled: false in policies.yaml)"
-        )
     return execute_research_for_event(action, event)
 
 
 def _execute_loop_action(action, loop: OpenLoop):
+    if not _executor_enabled(action.executor):
+        raise ValueError(f"{action.executor} executor is disabled in config")
     if action.executor == "code":
         return execute_code_for_loop(action, loop, workspace_root=WORKSPACE_ROOT)
     if action.executor == "browser":
         return execute_browser_for_loop(action, loop)
     if action.executor == "messaging":
         return execute_message_for_loop(action, loop)
-    if action.executor == "system":
-        raise ValueError(
-            "system executor is disabled (enabled: false in policies.yaml)"
-        )
     return execute_research_for_loop(action, loop)
 
 
@@ -268,8 +283,9 @@ def process_once() -> Dict[str, Any]:
             if result:
                 state.last_verified_result = result.to_dict()
 
-            # Success — reset circuit
-            _reset_circuit()
+            # Only fully verified work resets the circuit breaker.
+            if result is None or result.verified:
+                _reset_circuit()
         except Exception as e:
             execution_error = str(e)
             _consecutive_errors += 1
@@ -285,6 +301,7 @@ def process_once() -> Dict[str, Any]:
     save_event_queue(queued_events)
     save_open_loops(open_loops)
     write_json(CURRENT_STATE_PATH, state.to_dict())
+    _persist_circuit_breaker_state()
 
     run_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     payload = {

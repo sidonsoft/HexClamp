@@ -20,6 +20,10 @@ CODE_TASKS_DIR = BASE / "runs" / "code_tasks"
 _policies_cache: dict | None = None
 
 
+def _messaging_task_dir(task_id: str) -> Path:
+    return MESSAGING_TASKS_DIR / task_id
+
+
 def _write_change(action: Action, summary: str) -> str:
     artifact = BASE / "state" / "recent_changes.md"
     append_markdown(artifact, f"- {action.id}: {summary}\n")
@@ -522,21 +526,21 @@ def _validate_url(url: str) -> None:
         # Not a plain IPv4 - try parsing as IPv6 address
         try:
             addr = ipaddress.ip_address(host)
-            if addr.is_loopback:
-                raise ValueError(f"Host '{host}' is not allowed (loopback). Blocked URL: {url}")
-            if addr.is_private:
-                raise ValueError(f"Host '{host}' is not allowed (private/reserved IP range). Blocked URL: {url}")
-            # Block IPv4-mapped addresses (::ffff:127.0.0.1 etc.)
-            if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
-                mapped_v4 = addr.ipv4_mapped
-                if mapped_v4.is_loopback or mapped_v4.is_private:
-                    raise ValueError(f"Host '{host}' maps to private/loopback IPv4 '{mapped_v4}'. Blocked URL: {url}")
-            # Also block any address where the compressed form starts with ::ffff:
-            if isinstance(addr, ipaddress.IPv6Address) and host.lower().startswith("::ffff:"):
-                raise ValueError(f"Host '{host}' is not allowed (IPv4-mapped address). Blocked URL: {url}")
         except ValueError:
             # Not a valid IP address (e.g., a regular hostname) - let it pass
-            pass
+            return
+        if addr.is_loopback:
+            raise ValueError(f"Host '{host}' is not allowed (loopback). Blocked URL: {url}")
+        if addr.is_private:
+            raise ValueError(f"Host '{host}' is not allowed (private/reserved IP range). Blocked URL: {url}")
+        # Block IPv4-mapped addresses (::ffff:127.0.0.1 etc.)
+        if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
+            mapped_v4 = addr.ipv4_mapped
+            if mapped_v4.is_loopback or mapped_v4.is_private:
+                raise ValueError(f"Host '{host}' maps to private/loopback IPv4 '{mapped_v4}'. Blocked URL: {url}")
+        # Also block any address where the compressed form starts with ::ffff:
+        if isinstance(addr, ipaddress.IPv6Address) and host.lower().startswith("::ffff:"):
+            raise ValueError(f"Host '{host}' is not allowed (IPv4-mapped address). Blocked URL: {url}")
 
 
 def _navigate_and_capture(url: str, workdir: Path) -> dict:
@@ -766,10 +770,11 @@ def _parse_message_task(text: str) -> dict:
 
 def execute_message_for_event(action: Action, event: Event) -> tuple[str, list[str], list[str], OpenLoop]:
     text = event.payload.get("text", "")
+    task_id = f"loop-{event.id}"
     
     # Create messaging task directory
     MESSAGING_TASKS_DIR.mkdir(parents=True, exist_ok=True)
-    workdir = MESSAGING_TASKS_DIR / action.id
+    workdir = _messaging_task_dir(task_id)
     workdir.mkdir(parents=True, exist_ok=True)
     
     # Parse the task
@@ -779,6 +784,7 @@ def execute_message_for_event(action: Action, event: Event) -> tuple[str, list[s
     task_file = workdir / "task.json"
     task_record = {
         "action_id": action.id,
+        "task_id": task_id,
         "event_id": event.id,
         "text": text,
         "parsed_task": task,
@@ -826,7 +832,12 @@ def execute_message_for_event(action: Action, event: Event) -> tuple[str, list[s
     exec_path = workdir / "execution.json"
     write_json(exec_path, exec_record)
     
-    evidence = [event.id, action.id, str(task_file), str(exec_path)]
+    evidence = [
+        event.id,
+        action.id,
+        str(task_file.relative_to(BASE)),
+        str(exec_path.relative_to(BASE)),
+    ]
     artifact = _write_change(action, summary)
     
     loop = OpenLoop(
@@ -1063,7 +1074,7 @@ def execute_browser_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
 def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[str], list[str], OpenLoop]:
     # For message loops, create task files for OpenClaw execution
     MESSAGING_TASKS_DIR.mkdir(parents=True, exist_ok=True)
-    workdir = MESSAGING_TASKS_DIR / action.id
+    workdir = _messaging_task_dir(loop.id)
     workdir.mkdir(parents=True, exist_ok=True)
     
     # Parse the task from loop title
@@ -1073,6 +1084,7 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
     task_file = workdir / "task.json"
     task_record = {
         "action_id": action.id,
+        "task_id": loop.id,
         "loop_id": loop.id,
         "text": loop.title,
         "parsed_task": task,
@@ -1101,7 +1113,7 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
     
     # Sentinel approval check for blocked loops
     if loop_status == "blocked":
-        sentinel_path = BASE / "runs" / "messaging_tasks" / action.id / "approved"
+        sentinel_path = _messaging_task_dir(loop.id) / "approved"
         if sentinel_path.exists():
             # Sentinel file found — clear blocked status and proceed
             loop_status = "open"
@@ -1121,7 +1133,7 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
         exec_record = {
             "action_id": action.id,
             "loop_id": loop.id,
-            "status": "pending_messaging_execution",
+            "status": "sent" if result.success else "delivery_failed",
             "target_channel": task["channel"],
             "target_recipient": task["recipient"],
             "content_preview": task["content"][:100] if task["content"] else None,
@@ -1166,7 +1178,12 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
         exec_path = workdir / "execution.json"
         write_json(exec_path, exec_record)
     
-    evidence = [loop.id, action.id, str(task_file), str(exec_path)]
+    evidence = [
+        loop.id,
+        action.id,
+        str(task_file.relative_to(BASE)),
+        str(exec_path.relative_to(BASE)),
+    ]
     artifacts = [str(task_file.relative_to(BASE)), str(exec_path.relative_to(BASE))]
     
     loop.updated_at = datetime.now(timezone.utc).isoformat()

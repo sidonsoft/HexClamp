@@ -2,7 +2,7 @@
 """Approve and execute pending messaging tasks.
 
 Usage:
-    python3 scripts/approve_message.py <action_id> [--execute]
+    python3 scripts/approve_message.py <task_id> [--execute]
     python3 scripts/approve_message.py --list
 """
 
@@ -37,16 +37,14 @@ def list_pending_messages():
             continue
 
         parsed = task_data.get("parsed_task", {})
-        pending.append(
-            {
-                "action_id": task_data["action_id"],
-                "channel": parsed.get("channel"),
-                "recipient": parsed.get("recipient"),
-                "content_preview": parsed.get("content", "")[:60],
-                "requires_approval": parsed.get("requires_approval", True),
-            }
-        )
-
+        pending.append({
+            "task_id": task_data.get("task_id", task_dir.name),
+            "channel": parsed.get("channel"),
+            "recipient": parsed.get("recipient"),
+            "content_preview": parsed.get("content", "")[:60],
+            "requires_approval": parsed.get("requires_approval", True),
+        })
+    
     if not pending:
         print("No pending messaging tasks found.")
         return
@@ -54,36 +52,48 @@ def list_pending_messages():
     print(f"\nFound {len(pending)} pending message(s):\n")
     for msg in pending:
         status = "[APPROVAL REQUIRED]" if msg["requires_approval"] else "[READY]"
-        print(f"  {msg['action_id']}")
+        print(f"  {msg['task_id']}")
         print(f"    {status} {msg['channel']} → {msg['recipient']}")
         print(f"    Content: {msg['content_preview']}...")
         print()
 
 
-def approve_message(action_id: str, execute: bool = False) -> bool:
+def _resolve_task_dir(task_id: str) -> Path:
+    base_dir = MESSAGING_DIR.resolve()
+    task_dir = (MESSAGING_DIR / task_id).resolve()
+    try:
+        task_dir.relative_to(base_dir)
+    except ValueError:
+        raise ValueError(f"Invalid task id: {task_id}")
+    return task_dir
+
+
+def approve_message(task_id: str, execute: bool = False) -> bool:
     """Approve a message for sending."""
-    task_dir = MESSAGING_DIR / action_id
+    try:
+        task_dir = _resolve_task_dir(task_id)
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        return False
     task_file = task_dir / "task.json"
 
     if not task_file.exists():
-        print(f"Error: Task {action_id} not found")
+        print(f"Error: Task {task_id} not found")
         return False
 
     task_data = json.loads(task_file.read_text(encoding="utf-8"))
 
     if task_data.get("status") != "pending":
-        print(
-            f"Error: Task {action_id} is not pending (status: {task_data.get('status')})"
-        )
+        print(f"Error: Task {task_id} is not pending (status: {task_data.get('status')})")
         return False
 
     # Mark as approved
     task_data["parsed_task"]["requires_approval"] = False
     task_data["approved_at"] = datetime.now(timezone.utc).isoformat()
     task_file.write_text(json.dumps(task_data, indent=2), encoding="utf-8")
-
-    print(f"✓ Task {action_id} approved for sending")
-
+    
+    print(f"✓ Task {task_id} approved for sending")
+    
     if execute:
         print("  Executing message send...")
         # In a real implementation, this would trigger the actual send
@@ -101,13 +111,9 @@ def approve_message(action_id: str, execute: bool = False) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="Approve messaging tasks")
-    parser.add_argument("action_id", nargs="?", help="Action ID to approve")
-    parser.add_argument(
-        "--list", "-l", action="store_true", help="List pending messages"
-    )
-    parser.add_argument(
-        "--execute", "-x", action="store_true", help="Execute after approval"
-    )
+    parser.add_argument("action_id", nargs="?", help="Stable messaging task ID to approve")
+    parser.add_argument("--list", "-l", action="store_true", help="List pending messages")
+    parser.add_argument("--execute", "-x", action="store_true", help="Execute after approval")
     args = parser.parse_args()
 
     if args.list or not args.action_id:

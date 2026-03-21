@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from contextlib import contextmanager
+import fcntl
 from pathlib import Path
 from typing import Any, cast
 
@@ -36,6 +38,18 @@ def ensure_dirs() -> None:
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+@contextmanager
+def _locked_path(path: Path):
+    lock_path = path.with_name(f"{path.name}.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
 def bootstrap_runtime_state() -> list[str]:
     """Create any missing runtime files with safe defaults."""
     ensure_dirs()
@@ -58,7 +72,10 @@ def bootstrap_runtime_state() -> list[str]:
 def read_json(path: Path, default: Any = None) -> Any:
     if not path.exists():
         return default
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return default
 
 
 def write_json(path: Path, data: Any) -> None:
@@ -82,18 +99,21 @@ def write_json(path: Path, data: Any) -> None:
 
 def append_markdown(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    existing = path.read_text(encoding="utf-8") if path.exists() else ""
-    if existing and not existing.endswith("\n"):
-        existing += "\n"
-    path.write_text(existing + text, encoding="utf-8")
+    with _locked_path(path):
+        with open(path, "a+", encoding="utf-8") as f:
+            f.seek(0, os.SEEK_END)
+            if f.tell() > 0:
+                f.seek(f.tell() - 1)
+                if f.read(1) != "\n":
+                    f.write("\n")
+            f.write(text)
 
 
 def append_json_array(path: Path, item: Any) -> list[Any]:
     """Append item to JSON array atomically using read-modify-write with atomic write."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    # read_json + append + write_json (atomic rename) is sufficient
-    # since write_json uses temp file + os.replace (atomic on POSIX)
-    data = cast(list[Any], read_json(path, default=[]))
-    data.append(item)
-    write_json(path, data)
+    with _locked_path(path):
+        data = read_json(path, default=[])
+        data.append(item)
+        write_json(path, data)
     return data

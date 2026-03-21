@@ -125,7 +125,7 @@ class IntegrationTests(unittest.TestCase):
 
             self.assertEqual(payload["processed_event"]["id"], queued.id)
             self.assertEqual(payload["actions"][0]["executor"], "messaging")
-            self.assertTrue(payload["result"]["verified"])
+            self.assertFalse(payload["result"]["verified"])
 
             state_dir = Path(tmp) / "state"
             runs_dir = Path(tmp) / "runs"
@@ -154,7 +154,7 @@ class IntegrationTests(unittest.TestCase):
             self.assertEqual(loops[0]["owner"], "messaging")
             self.assertIn(loops[0]["status"], {"open", "blocked"})
             self.assertIn(loops[0]["id"], current_state["open_loops"])
-            self.assertEqual(current_state["recent_events"], [])
+            self.assertEqual(current_state["recent_events"], [queued.id])
 
     def test_full_observe_execute_verify_cycle(self):
         """
@@ -209,7 +209,7 @@ class IntegrationTests(unittest.TestCase):
                 # 2. Execute ONE process_once() cycle
                 payload = loop.process_once()
 
-                # 3. ASSERT: event was dequeued
+                # 3. ASSERT: event remains queued until verified execution completes
                 self.assertIsNotNone(payload["processed_event"])
                 self.assertEqual(payload["processed_event"]["id"], queued.id)
                 self.assertEqual(payload["actions"][0]["executor"], "messaging")
@@ -218,9 +218,8 @@ class IntegrationTests(unittest.TestCase):
                     (state_dir / "event_queue.json").read_text(encoding="utf-8")
                 )
                 self.assertEqual(
-                    len(queue_after),
-                    0,
-                    "Event should be dequeued after successful execution+verification",
+                    len(queue_after), 1,
+                    "Event should remain queued when execution only produced pending messaging artifacts",
                 )
 
                 # 4. ASSERT: open loop was created
@@ -258,9 +257,9 @@ class IntegrationTests(unittest.TestCase):
                     (task_dir / "brief.md").read_text(encoding="utf-8"),
                 )
 
-                # 6. ASSERT: result is verified
-                self.assertTrue(payload["result"]["verified"])
-                self.assertEqual(payload["result"]["status"], "success")
+                # 6. ASSERT: result is partial until approved delivery evidence exists
+                self.assertFalse(payload["result"]["verified"])
+                self.assertEqual(payload["result"]["status"], "partial")
 
                 # 7. ASSERT: state files persisted
                 current_state = json.loads(
@@ -271,7 +270,7 @@ class IntegrationTests(unittest.TestCase):
                     "Keep hexclamp coherent and progressing",
                 )
                 self.assertIn(loops[0]["id"], current_state["open_loops"])
-                self.assertEqual(current_state["recent_events"], [])
+                self.assertEqual(current_state["recent_events"], [queued.id])
 
                 recent_changes = (state_dir / "recent_changes.md").read_text(
                     encoding="utf-8"
@@ -291,7 +290,7 @@ class IntegrationTests(unittest.TestCase):
                     (runs_dir / "last_run.json").read_text(encoding="utf-8")
                 )
                 self.assertEqual(last_run["processed_event"]["id"], queued.id)
-                self.assertTrue(last_run["result"]["verified"])
+                self.assertFalse(last_run["result"]["verified"])
 
     def test_circuit_breaker_rejects_subsequent_events(self):
         """
@@ -461,11 +460,11 @@ class IntegrationTests(unittest.TestCase):
                 self.assertTrue((state_dir / "circuit_breaker.json").exists())
                 self.assertTrue((runs_dir / "last_run.json").exists())
 
-                # event_queue.json: event was dequeued
+                # event_queue.json: unverified messaging work remains queued
                 queue = json.loads(
                     (state_dir / "event_queue.json").read_text(encoding="utf-8")
                 )
-                self.assertEqual(len(queue), 0)
+                self.assertEqual(len(queue), 1)
 
                 # open_loops.json: exactly one messaging loop
                 loops = json.loads(
@@ -492,7 +491,7 @@ class IntegrationTests(unittest.TestCase):
                     (runs_dir / "last_run.json").read_text(encoding="utf-8")
                 )
                 self.assertEqual(last_run["processed_event"]["id"], queued.id)
-                self.assertTrue(last_run["result"]["verified"])
+                self.assertFalse(last_run["result"]["verified"])
 
 
 if __name__ == "__main__":
