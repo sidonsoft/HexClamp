@@ -95,6 +95,7 @@ def _evidence_file_exists(item: str) -> bool:
 
     # Try BASE-relative
     from store import BASE
+
     if _exists_within(BASE):
         return True
 

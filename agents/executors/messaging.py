@@ -100,6 +100,7 @@ def execute_message_for_event(
     task_file = workdir / "task.json"
     task_record = {
         "action_id": action.id,
+        "task_id": action.id,
         "event_id": event.id,
         "text": text,
         "parsed_task": task,
@@ -218,6 +219,7 @@ def execute_message_for_loop(
     task_file = workdir / "task.json"
     task_record = {
         "action_id": action.id,
+        "task_id": loop.id,
         "loop_id": loop.id,
         "text": loop.title,
         "parsed_task": task,

@@ -218,7 +218,8 @@ class IntegrationTests(unittest.TestCase):
                     (state_dir / "event_queue.json").read_text(encoding="utf-8")
                 )
                 self.assertEqual(
-                    len(queue_after), 1,
+                    len(queue_after),
+                    1,
                     "Event should remain queued when execution only produced pending messaging artifacts",
                 )
 

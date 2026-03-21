@@ -127,35 +127,36 @@ def _validate_url(url: str) -> None:
             raise ValueError(
                 f"Host '{host}' is not allowed (private IP range 192.168.x.x). Blocked URL: {url}"
             )
-        # Not a plain IPv4 - try parsing as IPv6 address
-        try:
-            addr = ipaddress.ip_address(host)
-        except ValueError:
-            # Not a valid IP address (e.g., a regular hostname) - let it pass
-            return
 
-        if addr.is_loopback:
+    # Not a plain IPv4 - try parsing as IPv6 address
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        # Not a valid IP address (e.g., a regular hostname) - let it pass
+        return
+
+    if addr.is_loopback:
+        raise ValueError(
+            f"Host '{host}' is not allowed (loopback). Blocked URL: {url}"
+        )
+    if addr.is_private:
+        raise ValueError(
+            f"Host '{host}' is not allowed (private/reserved IP range). Blocked URL: {url}"
+        )
+    # Block IPv4-mapped addresses (::ffff:127.0.0.1 etc.)
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
+        mapped_v4 = addr.ipv4_mapped
+        if mapped_v4.is_loopback or mapped_v4.is_private:
             raise ValueError(
-                f"Host '{host}' is not allowed (loopback). Blocked URL: {url}"
+                f"Host '{host}' maps to private/loopback IPv4 '{mapped_v4}'. Blocked URL: {url}"
             )
-        if addr.is_private:
-            raise ValueError(
-                f"Host '{host}' is not allowed (private/reserved IP range). Blocked URL: {url}"
-            )
-        # Block IPv4-mapped addresses (::ffff:127.0.0.1 etc.)
-        if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
-            mapped_v4 = addr.ipv4_mapped
-            if mapped_v4.is_loopback or mapped_v4.is_private:
-                raise ValueError(
-                    f"Host '{host}' maps to private/loopback IPv4 '{mapped_v4}'. Blocked URL: {url}"
-                )
-        # Also block any address where the compressed form starts with ::ffff:
-        if isinstance(addr, ipaddress.IPv6Address) and host.lower().startswith(
-            "::ffff:"
-        ):
-            raise ValueError(
-                f"Host '{host}' is not allowed (IPv4-mapped address). Blocked URL: {url}"
-            )
+    # Also block any address where the compressed form starts with ::ffff:
+    if isinstance(addr, ipaddress.IPv6Address) and host.lower().startswith(
+        "::ffff:"
+    ):
+        raise ValueError(
+            f"Host '{host}' is not allowed (IPv4-mapped address). Blocked URL: {url}"
+        )
 
 
 def _navigate_and_capture(url: str, workdir: Path) -> dict:

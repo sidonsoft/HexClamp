@@ -37,14 +37,16 @@ def list_pending_messages():
             continue
 
         parsed = task_data.get("parsed_task", {})
-        pending.append({
-            "task_id": task_data.get("task_id", task_dir.name),
-            "channel": parsed.get("channel"),
-            "recipient": parsed.get("recipient"),
-            "content_preview": parsed.get("content", "")[:60],
-            "requires_approval": parsed.get("requires_approval", True),
-        })
-    
+        pending.append(
+            {
+                "task_id": task_data.get("task_id", task_dir.name),
+                "channel": parsed.get("channel"),
+                "recipient": parsed.get("recipient"),
+                "content_preview": parsed.get("content", "")[:60],
+                "requires_approval": parsed.get("requires_approval", True),
+            }
+        )
+
     if not pending:
         print("No pending messaging tasks found.")
         return
@@ -84,16 +86,18 @@ def approve_message(task_id: str, execute: bool = False) -> bool:
     task_data = json.loads(task_file.read_text(encoding="utf-8"))
 
     if task_data.get("status") != "pending":
-        print(f"Error: Task {task_id} is not pending (status: {task_data.get('status')})")
+        print(
+            f"Error: Task {task_id} is not pending (status: {task_data.get('status')})"
+        )
         return False
 
     # Mark as approved
     task_data["parsed_task"]["requires_approval"] = False
     task_data["approved_at"] = datetime.now(timezone.utc).isoformat()
     task_file.write_text(json.dumps(task_data, indent=2), encoding="utf-8")
-    
+
     print(f"✓ Task {task_id} approved for sending")
-    
+
     if execute:
         print("  Executing message send...")
         # In a real implementation, this would trigger the actual send
@@ -111,9 +115,15 @@ def approve_message(task_id: str, execute: bool = False) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="Approve messaging tasks")
-    parser.add_argument("task_id", nargs="?", help="Stable messaging task ID to approve")
-    parser.add_argument("--list", "-l", action="store_true", help="List pending messages")
-    parser.add_argument("--execute", "-x", action="store_true", help="Execute after approval")
+    parser.add_argument(
+        "task_id", nargs="?", help="Stable messaging task ID to approve"
+    )
+    parser.add_argument(
+        "--list", "-l", action="store_true", help="List pending messages"
+    )
+    parser.add_argument(
+        "--execute", "-x", action="store_true", help="Execute after approval"
+    )
     args = parser.parse_args()
     if args.list or not args.task_id:
         list_pending_messages()
