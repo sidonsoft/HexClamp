@@ -504,8 +504,10 @@ def _validate_url(url: str) -> None:
     match = re.match(ipv4_pattern, host)
 
     if match:
-        # Plain IPv4 address - check private ranges
+        # Plain IPv4 address - validate octets are in range 0-255
         octets = [int(m) for m in match.groups()]
+        if not all(0 <= o <= 255 for o in octets):
+            raise ValueError(f"Host '{host}' is not a valid IPv4 address (octets must be 0-255). Blocked URL: {url}")
         # 10.x.x.x
         if octets[0] == 10:
             raise ValueError(f"Host '{host}' is not allowed (private IP range 10.x.x.x). Blocked URL: {url}")
