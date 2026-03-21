@@ -5,10 +5,9 @@ import requests
 from dataclasses import dataclass
 from typing import Any, Optional, cast
 
-BOT_TOKEN = os.environ.get(
-    "TELEGRAM_BOT_TOKEN",
-    "8645335498:AAHYlB1Uf6qQWoZoU7o16Tm-8c2rhWUS6A0",  # fallback for dev
-)
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+if not BOT_TOKEN:
+    raise RuntimeError("TELEGRAM_BOT_TOKEN environment variable is not set")
 BOT_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 
