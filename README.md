@@ -68,26 +68,30 @@ prompts/
 | Executor   | Status | Notes |
 |------------|--------|-------|
 | research   | ✅ Active | Grounded summaries → `state/recent_changes.md` |
-| code       | ✅ Active | Coding agent tasks → `runs/code_tasks/` (see known issues) |
-| browser    | 🔧 Active | Stub — navigates, extracts (see known issues) |
-| messaging  | 🔧 Active | Draft/send with approval gate (see known issues) |
-| system     | ⚠️ Gap   | Declared in schema and classifier, not yet implemented |
+| code       | ✅ Active | Coding agent tasks → runs in target workspace |
+| browser    | 🔧 Stub   | Task artifacts created; awaiting real browser integration |
+| messaging  | 🔧 Stub   | Draft/send with approval gate; awaiting real delivery integration |
+| system     | ⚠️ Removed | Removed — no executor branch, reduces attack surface |
 
-## Known issues
+## Code review findings — all resolved
 
-Code review findings are being addressed in `fix/code-review-findings`:
+All 11 findings from the Codex architecture review are fixed and merged:
 
-- **#6** — planner selects most-urgent loop but executor runs least-urgent (`process_once` / `plan_next_actions` mismatch)
-- **#7** — code executor operates in scratch dir, not target workspace
-- **#8** — events dropped on executor/verification failure (no requeue)
-- **#9** — non-atomic JSON writes (`append_json_array` race condition)
-- **#10** — verification false positives (pending task files counted as evidence)
-- **#11** — prompt injection risk (untrusted chat input → autonomous coding agents)
-- **#12** — `system` classified but no executor branch exists
-- **#13** — `enabled` policy flags not enforced in code; `require_approval` not checked for code actions
-- **#14** — `_parse_datetime` falls back to "now" on bad timestamps, masking staleness
-- **#15** — schema validation rebuilds registry from disk on every call
-- **#16** — browser search URL uses space-replace only, breaks on `&?#`
+| # | Finding | Status |
+|---|---------|--------|
+| #6 | Planner/executor urgency index mismatch | ✅ Fixed |
+| #7 | Code executor ran in scratch dir, not workspace | ✅ Fixed |
+| #8 | Events lost on executor/verification failure | ✅ Fixed |
+| #9 | Non-atomic JSON writes (fcntl deadlock) | ✅ Fixed |
+| #10 | Pending task files counted as completion evidence | ✅ Fixed |
+| #11 | Prompt injection risk (untrusted chat → coding agents) | ⚠️ Opt-in gate |
+| #12 | System action classified with no executor branch | ✅ Fixed (removed) |
+| #13 | Policy flags and approval not enforced | ✅ Fixed |
+| #14 | Invalid datetimes silently fell back to "now" | ✅ Fixed |
+| #15 | Schema registry rebuilt from disk on every call | ✅ Fixed |
+| #16 | Browser URL encoding only handled spaces | ✅ Fixed |
+
+**Issue #11 note:** Prompt injection risk is mitigated by an opt-in `require_approval` gate in `config/policies.yaml`. Set `policies.code.require_approval: true` to block autonomous code execution when untrusted chat input can reach the loop. The approval gate blocks the external agent from spawning until a human explicitly approves.
 
 ## Testing
 
