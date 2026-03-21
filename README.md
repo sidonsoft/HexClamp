@@ -48,10 +48,15 @@ schemas/
   state.schema.json
 
 prompts/
-  observer.md     # Role prompt for the observer
-  condenser.md    # Role prompt for the condenser
-  planner.md      # Role prompt for the planner
-  verifier.md     # Role prompt for the verifier
+  observer.md       # Role prompt for the observer
+  condenser.md      # Role prompt for the condenser
+  planner.md        # Role prompt for the planner
+  verifier.md       # Role prompt for the verifier
+  executors/
+    research.md    # Role prompt for the research executor
+    code.md        # Role prompt for the code executor
+    browser.md     # Role prompt for the browser executor
+    messaging.md   # Role prompt for the messaging executor
 ```
 
 ## Executors
@@ -113,7 +118,7 @@ GitHub Actions runs syntax checks and the full test suite on every push to `main
 
 1. Add the executor function to `agents/executors.py`
 2. Add the action type to `schemas/action.schema.json` enum
-3. Create a role prompt in `prompts/<name>.md`
+3. Create a role prompt in `prompts/executors/<name>.md`
 4. Add `verification.required_for` entry in `config/policies.yaml` if evidence is needed
 5. Add tests in `tests/`
 6. Update this README's executor status table
