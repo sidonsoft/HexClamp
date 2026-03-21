@@ -165,7 +165,6 @@ class TestExecuteBrowserForEvent(unittest.TestCase):
                     side_effect=lambda url, workdir: _mock_navigate_and_capture_success(url, workdir)
                 ):
                     # Also create the actual files
-                    original_func = executors._navigate_and_capture
                     def mock_with_files(url, workdir):
                         result = _mock_navigate_and_capture_success(url, workdir)
                         # Create actual files

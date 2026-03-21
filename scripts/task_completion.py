@@ -69,7 +69,6 @@ def verify_code_task(task: dict) -> dict:
     """Verify a code task has valid outputs."""
     result = {"verified": False, "checks": []}
     
-    task_data = task["task"]
     exec_data = task.get("execution")
     
     if not exec_data:
@@ -118,7 +117,6 @@ def verify_browser_task(task: dict) -> dict:
     result = {"verified": False, "checks": []}
     
     task_data = task["task"]
-    task_dir = task["task_dir"]
     
     # Check for screenshot
     screenshot = task_data.get("results", {}).get("screenshot")

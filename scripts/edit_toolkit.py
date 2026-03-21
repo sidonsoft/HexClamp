@@ -155,7 +155,7 @@ def safe_edit(file_path: str, old_text: str, new_text: str, verbose: bool = True
     # Exact match failed - try fuzzy
     if verbose:
         print(f"⚠️  Exact match failed for: {file_path}")
-        print(f"   Attempting fuzzy match...")
+        print("   Attempting fuzzy match...")
     
     ratio, matched, pos = find_text_in_file(file_path, old_text)
     
@@ -168,7 +168,7 @@ def safe_edit(file_path: str, old_text: str, new_text: str, verbose: bool = True
         path.write_text(new_content, encoding="utf-8")
         
         if verbose:
-            print(f"⚠️  Fuzzy match edit applied (threshold: 85%)")
+            print("⚠️  Fuzzy match edit applied (threshold: 85%)")
             show_diff(matched, new_text, file_path)
         return True
     
@@ -178,8 +178,8 @@ def safe_edit(file_path: str, old_text: str, new_text: str, verbose: bool = True
         show_diff(old_text, matched, "What was expected vs what was found")
         
         # Suggest using write instead
-        print(f"\n💡 Suggestion: The file has changed. Consider using write() instead of edit()")
-        print(f"   Or re-read the file to get the current content.")
+        print("\n💡 Suggestion: The file has changed. Consider using write() instead of edit()")
+        print("   Or re-read the file to get the current content.")
     
     return False
 
@@ -201,10 +201,10 @@ def edit_with_fallback(file_path: str, old_text: str, new_text: str, force: bool
     
     # Edit failed - ask user what to do
     print(f"\n⚠️  Edit failed for {file_path}")
-    print(f"   Options:")
-    print(f"   1. Re-read file and try again")
-    print(f"   2. Use write() to replace entire file")
-    print(f"   3. Use auto_edit.py for fuzzy matching")
+    print("   Options:")
+    print("   1. Re-read file and try again")
+    print("   2. Use write() to replace entire file")
+    print("   3. Use auto_edit.py for fuzzy matching")
     
     return False
 

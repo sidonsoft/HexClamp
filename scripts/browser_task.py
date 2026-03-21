@@ -45,7 +45,6 @@ def main():
     
     task = json.loads(task_path.read_text(encoding="utf-8"))
     text = task.get("text", "")
-    workdir = Path(task.get("workdir", "/tmp"))
     action_id = task.get("action_id", "unknown")
     
     # Extract URLs

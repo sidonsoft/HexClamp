@@ -81,7 +81,7 @@ def approve_message(action_id: str, execute: bool = False) -> bool:
     print(f"✓ Task {action_id} approved for sending")
     
     if execute:
-        print(f"  Executing message send...")
+        print("  Executing message send...")
         # In a real implementation, this would trigger the actual send
         # For now, mark as ready for OpenClaw execution
         exec_file = task_dir / "execution.json"
@@ -90,7 +90,7 @@ def approve_message(action_id: str, execute: bool = False) -> bool:
             exec_data["approved"] = True
             exec_data["approved_at"] = task_data["approved_at"]
             exec_file.write_text(json.dumps(exec_data, indent=2), encoding="utf-8")
-        print(f"  ✓ Ready for OpenClaw execution")
+        print("  ✓ Ready for OpenClaw execution")
     
     return True
 
