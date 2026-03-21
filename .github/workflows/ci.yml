@@ -46,4 +46,4 @@ jobs:
         run: ruff check .
 
       - name: Pytest — discover and run tests
-        run: pytest tests/ -v --tb=short
+        run: python -m pytest tests/ -v --tb=short
