@@ -32,6 +32,8 @@ executors:
     model: default
     role: navigate_and_extract
   messaging:
+    # ⚠️ Set to true when TELEGRAM_BOT_TOKEN is configured and the bot is ready.
+    # When disabled, the loop will skip all messaging tasks (safe default).
     enabled: false
     model: default
     role: draft_or_send_with_approval
