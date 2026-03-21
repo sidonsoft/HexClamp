@@ -14,6 +14,7 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Dict
 
 
 def extract_urls(text: str) -> list[str]:
@@ -37,6 +38,7 @@ def main():
 
     task_path = Path(args.task_file)
     result_path = Path(args.result_file)
+    result: Dict[str, Any]
 
     if not task_path.exists():
         error_result = {"success": False, "error": f"Task file not found: {task_path}"}

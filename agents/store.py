@@ -113,7 +113,7 @@ def append_json_array(path: Path, item: Any) -> list[Any]:
     """Append item to JSON array atomically using read-modify-write with atomic write."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with _locked_path(path):
-        data = read_json(path, default=[])
+        data: list[Any] = read_json(path, default=[])
         data.append(item)
         write_json(path, data)
     return data
