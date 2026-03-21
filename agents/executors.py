@@ -472,6 +472,7 @@ def _validate_url(url: str) -> None:
     Raises ValueError if the URL uses a dangerous scheme or targets an internal/dangerous host.
     Only http:// and https:// are allowed.
     """
+    import ipaddress
     from urllib.parse import urlparse
 
     parsed = urlparse(url)
@@ -493,16 +494,17 @@ def _validate_url(url: str) -> None:
     if host.lower() in localhost_names:
         raise ValueError(f"Host '{host}' is not allowed (localhost). Blocked URL: {url}")
 
-    # Block loopback
-    if host == "127.0.0.1" or host == "::1":
+    # Block loopback (127.0.0.1 and ::1 / 0:0:0:0:0:0:0:1)
+    if host == "127.0.0.1" or host == "::1" or host == "0:0:0:0:0:0:0:1":
         raise ValueError(f"Host '{host}' is not allowed (loopback). Blocked URL: {url}")
 
-    # Block private IP ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+    # Use Python's ipaddress module for robust IPv4 and IPv6 validation
     import re
-    # Check for IPv4 addresses
     ipv4_pattern = r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$"
     match = re.match(ipv4_pattern, host)
+
     if match:
+        # Plain IPv4 address - check private ranges
         octets = [int(m) for m in match.groups()]
         # 10.x.x.x
         if octets[0] == 10:
@@ -513,6 +515,25 @@ def _validate_url(url: str) -> None:
         # 192.168.x.x
         if octets[0] == 192 and octets[1] == 168:
             raise ValueError(f"Host '{host}' is not allowed (private IP range 192.168.x.x). Blocked URL: {url}")
+    else:
+        # Not a plain IPv4 - try parsing as IPv6 address
+        try:
+            addr = ipaddress.ip_address(host)
+            if addr.is_loopback:
+                raise ValueError(f"Host '{host}' is not allowed (loopback). Blocked URL: {url}")
+            if addr.is_private:
+                raise ValueError(f"Host '{host}' is not allowed (private/reserved IP range). Blocked URL: {url}")
+            # Block IPv4-mapped addresses (::ffff:127.0.0.1 etc.)
+            if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped:
+                mapped_v4 = addr.ipv4_mapped
+                if mapped_v4.is_loopback or mapped_v4.is_private:
+                    raise ValueError(f"Host '{host}' maps to private/loopback IPv4 '{mapped_v4}'. Blocked URL: {url}")
+            # Also block any address where the compressed form starts with ::ffff:
+            if isinstance(addr, ipaddress.IPv6Address) and host.lower().startswith("::ffff:"):
+                raise ValueError(f"Host '{host}' is not allowed (IPv4-mapped address). Blocked URL: {url}")
+        except ValueError:
+            # Not a valid IP address (e.g., a regular hostname) - let it pass
+            pass
 
 
 def _navigate_and_capture(url: str, workdir: Path) -> dict:
