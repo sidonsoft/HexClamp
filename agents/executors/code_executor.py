@@ -82,6 +82,14 @@ def _find_target_files(source_text: str, workspace_root: Path) -> list[Path]:
     return targets
 
 
+def _resolve_spawn_coding_agent():
+    """Resolve the current package-level spawn hook for backward-compatible patching."""
+    package = sys.modules.get("executors")
+    if package is not None and hasattr(package, "_spawn_coding_agent"):
+        return getattr(package, "_spawn_coding_agent")
+    return _spawn_coding_agent
+
+
 def _spawn_coding_agent(task: str, workdir: Path, agent_id: str = "codex") -> dict:
     """
     Spawn a real coding agent to execute the task.
@@ -224,7 +232,7 @@ def execute_code_for_event(action: Action, event: Event, workspace_root: Path | 
         summary = f"Code task requires approval: {text[:60]}..."
         return summary, [event.id, action.id], code_artifacts, loop
     
-    agent_result = _spawn_coding_agent(text, workspace_root)
+    agent_result = _resolve_spawn_coding_agent()(text, workspace_root)
     
     py_evidence, py_failures = _quality_gate_changed_files(
         agent_result.get("changed_files", []), workspace_root
@@ -311,7 +319,7 @@ def execute_code_for_loop(action: Action, loop: OpenLoop, workspace_root: Path |
         summary = f"Code loop requires approval: {loop.title[:60]}..."
         return summary, loop.evidence, code_artifacts, loop
     
-    agent_result = _spawn_coding_agent(loop.title, workspace_root)
+    agent_result = _resolve_spawn_coding_agent()(loop.title, workspace_root)
     
     py_evidence, py_failures = _quality_gate_changed_files(
         agent_result.get("changed_files", []), workspace_root

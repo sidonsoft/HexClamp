@@ -121,16 +121,18 @@ def execute_message_for_event(action: Action, event: Event) -> tuple[str, list[s
 
 - channel: {task.get('channel')}
 - recipient: {task.get('recipient')}
+- requires_approval: {task.get('requires_approval')}
 - content: {task.get('content', '')[:100]}
 
 ## Next Steps
 
 1. Review parsed task details
 2. If channel and recipient are valid, proceed with delivery
-3. If missing info, ask user for clarification
+3. If approval is required, wait for explicit approval
+4. If missing info, ask user for clarification
 """
     brief_path.write_text(brief_content)
-    
+
     loop_status, next_step, blocked_by, loop_summary = _initial_loop_state(event, "messaging")
     
     loop = OpenLoop(
@@ -145,17 +147,51 @@ def execute_message_for_event(action: Action, event: Event) -> tuple[str, list[s
         blocked_by=blocked_by,
         evidence=[event.id],
     )
-    
-    # Add task file to evidence and artifacts
-    artifact = _write_change(action, f"Created messaging task: {task['original_text'][:80]}")
+
+    # Issue #13: Enforce external_send.require_approval policy - policy overrides keyword heuristics
+    policies = _load_policies()
+    if policies.get("external_send", {}).get("require_approval", False):
+        task["requires_approval"] = True
+
+    # Determine if we can execute
+    if task["requires_approval"]:
+        loop.status = "blocked"
+        loop.blocked_by = ["approval required"]
+        loop.next_step = f"Await approval to send {task['channel']} message to {task['recipient']}"
+        summary = f"Messaging task queued (approval required): {task['channel']} to {task['recipient']}"
+    else:
+        loop.status = "open"
+        loop.blocked_by = []
+        loop.next_step = f"Send {task['channel']} message to {task['recipient']}"
+        summary = f"Messaging task ready: {task['channel']} to {task['recipient']}"
+
+    # Write execution record for event-driven messaging flows too.
+    exec_record = {
+        "action_id": action.id,
+        "event_id": event.id,
+        "status": "pending_messaging_execution",
+        "target_channel": task["channel"],
+        "target_recipient": task["recipient"],
+        "content_preview": task["content"][:100] if task["content"] else None,
+        "requires_approval": task["requires_approval"],
+        "task_file": str(task_file),
+        "workdir": str(workdir),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    exec_path = workdir / "execution.json"
+    write_json(exec_path, exec_record)
+
+    # Add task file and execution record to evidence and artifacts
+    artifact = _write_change(action, summary)
     artifacts = [
         artifact,
         str(task_file.relative_to(base.BASE)),
         str(brief_path.relative_to(base.BASE)),
+        str(exec_path.relative_to(base.BASE)),
     ]
-    evidence = [event.id, str(task_file), str(brief_path)]
-    
-    return loop_summary, evidence, artifacts, loop
+    evidence = [event.id, action.id, str(task_file), str(exec_path)]
+
+    return summary, evidence, artifacts, loop
 
 
 def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[str], list[str], OpenLoop]:
