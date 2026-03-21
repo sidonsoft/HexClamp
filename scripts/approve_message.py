@@ -111,16 +111,15 @@ def approve_message(task_id: str, execute: bool = False) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="Approve messaging tasks")
-    parser.add_argument("action_id", nargs="?", help="Stable messaging task ID to approve")
+    parser.add_argument("task_id", nargs="?", help="Stable messaging task ID to approve")
     parser.add_argument("--list", "-l", action="store_true", help="List pending messages")
     parser.add_argument("--execute", "-x", action="store_true", help="Execute after approval")
     args = parser.parse_args()
-
-    if args.list or not args.action_id:
+    if args.list or not args.task_id:
         list_pending_messages()
         return 0
 
-    if approve_message(args.action_id, args.execute):
+    if approve_message(args.task_id, args.execute):
         return 0
     return 1
 

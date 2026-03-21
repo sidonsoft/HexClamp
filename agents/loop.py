@@ -92,9 +92,16 @@ def _load_yaml(path: Path) -> dict:
 
 
 def _executor_enabled(executor: str) -> bool:
-    enabled = executor != "system"
+    if executor == "system":
+        return False  # system executor is not supported
+    enabled = True
     for config_path in (store.BASE / "config" / "agents.yaml", store.BASE / "config" / "policies.yaml"):
-        data = _load_yaml(config_path)
+        try:
+            data = _load_yaml(config_path)
+        except Exception:
+            import warnings
+            warnings.warn(f"Could not read {config_path}; ignoring", RuntimeWarning)
+            continue
         value = data.get("executors", {}).get(executor, {}).get("enabled")
         if value is not None:
             enabled = enabled and bool(value)
