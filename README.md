@@ -69,7 +69,7 @@ prompts/
 |------------|--------|-------|
 | research   | ✅ Active | Grounded summaries → `state/recent_changes.md` |
 | code       | ✅ Active | Coding agent tasks → runs in target workspace |
-| browser    | 🔧 Stub   | Task artifacts created; awaiting real browser integration |
+| browser    | ✅ Active | Playwright headless Chromium — navigates, screenshots, extracts text |
 | messaging  | 🔧 Stub   | Draft/send with approval gate; awaiting real delivery integration |
 | system     | ⚠️ Removed | Removed — no executor branch, reduces attack surface |
 
@@ -89,7 +89,7 @@ All 11 findings from the Codex architecture review are fixed and merged:
 | #13 | Policy flags and approval not enforced | ✅ Fixed |
 | #14 | Invalid datetimes silently fell back to "now" | ✅ Fixed |
 | #15 | Schema registry rebuilt from disk on every call | ✅ Fixed |
-| #16 | Browser URL encoding only handled spaces | ✅ Fixed |
+| #16 | Browser URL only encoded spaces | ✅ Fixed (full URL validation: schemes, IPv4/IPv6 private ranges, octet range checks) |
 
 **Issue #11 note:** Prompt injection risk is mitigated by an opt-in `require_approval` gate in `config/policies.yaml`. Set `policies.code.require_approval: true` to block autonomous code execution when untrusted chat input can reach the loop. The approval gate blocks the external agent from spawning until a human explicitly approves.
 

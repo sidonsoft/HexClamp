@@ -14,7 +14,7 @@ The loop is organized around six distinct responsibilities (observe → condense
 
 ## Current phase
 
-**Active development** — core loop implemented, all four executors (research, code, browser, messaging) wired up, CI/CD in place. Addressing known issues from code review before declaring v1.0 done.
+**Near v1.0** — core loop fully implemented and reviewed, CI/CD in place, all major code review findings resolved. Browser executor live. Remaining gap: real messaging delivery integration.
 
 ## Operating constraints
 
@@ -28,16 +28,20 @@ The loop is organized around six distinct responsibilities (observe → condense
 
 - Research executor: grounded summaries into `state/recent_changes.md`
 - Code executor: coding agent task briefs in `runs/code_tasks/`
-- Browser executor: navigation and extraction stubs
-- Messaging executor: draft/send with approval gate
+- Browser executor: Playwright headless Chromium, navigates, screenshots to `screenshot.png`, extracts text to `content.txt`, URL validation (schemes + IPv4/IPv6 private ranges)
 - File-backed state with atomic JSON I/O
 - Schema validation with disk-backed caching
-- GitHub Actions CI: syntax checks + pytest on every push/PR
+- GitHub Actions CI: syntax checks + pytest + ruff linting on every push/PR
+- Circuit breaker with persisted state (survives restarts)
+- End-to-end integration tests (39 tests passing)
 
 ## What's not yet
 
-- `system` executor (classified by planner but has no implementation)
 - `wait` action type (declared in schema, no executor path)
-- `enabled` policy flags not enforced by executor code
-- Browser executor needs real visible-state evidence
-- Messaging executor approval gate doesn't check `external_send.require_approval` policy
+- `messaging` executor: real delivery integration (draft/send with approval gate works; delivery to real endpoints not yet wired)
+- Status dashboard (visual progress/loop overview)
+- End-to-end test coverage for the full observe → execute → verify cycle with real agents
+
+## v1.0 scope
+
+MVP is a loop that can observe, plan, execute (research + code + browser), verify, and persist — fully file-backed, auditable, and recoverable. Messaging delivery is desirable but not blocking.
