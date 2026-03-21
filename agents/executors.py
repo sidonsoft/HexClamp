@@ -465,6 +465,50 @@ def _parse_browser_task(text: str) -> dict:
     }
 
 
+
+def _navigate_and_capture(url: str, workdir: Path) -> dict:
+    """
+    Launch headless Chromium, navigate to URL, capture screenshot and text.
+    Returns dict with keys: success, screenshot_path, content_path, error, url, title.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+        
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            
+            # Navigate with 30s timeout
+            page.goto(url, timeout=30000, wait_until="domcontentloaded")
+            
+            # Capture screenshot
+            screenshot_path = workdir / "screenshot.png"
+            page.screenshot(path=str(screenshot_path), full_page=True)
+            
+            # Extract visible text content
+            content_path = workdir / "content.txt"
+            text_content = page.inner_text("body")
+            content_path.write_text(text_content, encoding="utf-8")
+            
+            browser.close()
+            
+            return {
+                "success": True,
+                "screenshot_path": str(screenshot_path),
+                "content_path": str(content_path),
+                "url": page.url,
+                "title": page.title(),
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "screenshot_path": None,
+            "content_path": None,
+            "url": url,
+            "title": None,
+        }
+
 def execute_browser_for_event(action: Action, event: Event) -> tuple[str, list[str], list[str], OpenLoop]:
     text = event.payload.get("text", "")
     
@@ -489,43 +533,77 @@ def execute_browser_for_event(action: Action, event: Event) -> tuple[str, list[s
     }
     write_json(task_file, task_record)
     
-    # Create artifacts
-    brief_path = workdir / "brief.md"
-    brief_content = f"# Browser Task\n\n- action_id: {action.id}\n- event_id: {event.id}\n- status: pending\n\n## Task\n\n{text}\n\n## Parsed\n\n- type: {task['type']}\n- urls: {task['urls']}\n- search_terms: {task['search_terms']}\n\n## Evidence Needed\n\n- [ ] Screenshot of page\n- [ ] Page content/text extraction\n- [ ] URL verification\n"
-    brief_path.write_text(brief_content, encoding="utf-8")
-    
-    # Determine if we have a target URL
+    # Determine target URL
     target_url = None
     if task["urls"]:
         target_url = task["urls"][0]
     elif task["search_terms"]:
         target_url = f"https://www.google.com/search?q={quote_plus(task['search_terms'])}"
     
+    # Write initial execution record
+    exec_record = {
+        "action_id": action.id,
+        "event_id": event.id,
+        "status": "pending_browser_execution",
+        "target_url": target_url,
+        "task_file": str(task_file),
+        "workdir": str(workdir),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    exec_path = workdir / "execution.json"
+    write_json(exec_path, exec_record)
+    
+    # Create brief artifact
+    brief_path = workdir / "brief.md"
+    brief_content = f"# Browser Task\n\n- action_id: {action.id}\n- event_id: {event.id}\n- status: pending\n\n## Task\n\n{text}\n\n## Parsed\n\n- type: {task['type']}\n- urls: {task['urls']}\n- search_terms: {task['search_terms']}\n\n## Evidence Needed\n\n- [ ] Screenshot of page\n- [ ] Page content/text extraction\n- [ ] URL verification\n"
+    brief_path.write_text(brief_content, encoding="utf-8")
+    
+    # Execute browser navigation if we have a URL
+    evidence = [event.id, action.id]
+    artifacts = [
+        str(task_file.relative_to(BASE)),
+        str(brief_path.relative_to(BASE)),
+        str(exec_path.relative_to(BASE)),
+    ]
+    
     if target_url:
-        # Write execution record
-        exec_record = {
-            "action_id": action.id,
-            "event_id": event.id,
-            "status": "pending_browser_execution",
-            "target_url": target_url,
-            "task_file": str(task_file),
-            "workdir": str(workdir),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        exec_path = workdir / "execution.json"
+        browser_result = _navigate_and_capture(target_url, workdir)
+        
+        # Update execution record
+        exec_record["status"] = "completed" if browser_result["success"] else "failed"
+        exec_record["completed_at"] = datetime.now(timezone.utc).isoformat()
+        if browser_result["success"]:
+            exec_record["url"] = browser_result["url"]
+            exec_record["title"] = browser_result["title"]
+            exec_record["screenshot_path"] = browser_result["screenshot_path"]
+            exec_record["content_path"] = browser_result["content_path"]
+            evidence.extend([
+                str((workdir / "screenshot.png").relative_to(BASE)),
+                str((workdir / "content.txt").relative_to(BASE)),
+            ])
+        else:
+            exec_record["error"] = browser_result["error"]
+        
         write_json(exec_path, exec_record)
         
-        summary = f"Browser task queued for execution: {target_url}"
-        evidence = [event.id, action.id, str(task_file), str(exec_path)]
-        loop_status = "open"
-        next_step = f"Navigate to {target_url} and capture evidence"
+        if browser_result["success"]:
+            summary = f"Browser task completed: navigated to {target_url} and captured evidence"
+            loop_status = "resolved"
+            next_step = "Browser task executed successfully"
+        else:
+            summary = f"Browser task failed: {browser_result['error']}"
+            loop_status = "blocked"
+            next_step = f"Browser failed: {browser_result['error'][:80]}"
     else:
         summary = f"Browser task created but no URL found in: {text[:60]}..."
-        evidence = [event.id, action.id, str(task_file)]
+        exec_record["status"] = "failed"
+        exec_record["error"] = "No URL found in task"
+        write_json(exec_path, exec_record)
         loop_status = "blocked"
         next_step = "No URL found in task - requires clarification"
     
     artifact = _write_change(action, summary)
+    artifacts.append(artifact)
     
     loop = OpenLoop(
         id=f"loop-{event.id}",
@@ -539,14 +617,6 @@ def execute_browser_for_event(action: Action, event: Event) -> tuple[str, list[s
         blocked_by=["no-url-found"] if loop_status == "blocked" else [],
         evidence=evidence,
     )
-    
-    artifacts = [
-        str(task_file.relative_to(BASE)),
-        str(brief_path.relative_to(BASE)),
-        artifact,
-    ]
-    if target_url:
-        artifacts.append(str(exec_path.relative_to(BASE)))
     
     return summary, evidence, artifacts, loop
 
@@ -817,7 +887,7 @@ def execute_code_for_loop(action: Action, loop: OpenLoop, workspace_root: Path |
 
 
 def execute_browser_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[str], list[str], OpenLoop]:
-    # For browser loops, create task files for OpenClaw execution
+    # For browser loops, execute real browser navigation with Playwright
     BROWSER_TASKS_DIR.mkdir(parents=True, exist_ok=True)
     workdir = BROWSER_TASKS_DIR / action.id
     workdir.mkdir(parents=True, exist_ok=True)
@@ -845,32 +915,61 @@ def execute_browser_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
     elif task["search_terms"]:
         target_url = f"https://www.google.com/search?q={quote_plus(task['search_terms'])}"
     
+    # Write initial execution record
+    exec_record = {
+        "action_id": action.id,
+        "loop_id": loop.id,
+        "status": "pending_browser_execution",
+        "target_url": target_url,
+        "task_file": str(task_file),
+        "workdir": str(workdir),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    exec_path = workdir / "execution.json"
+    write_json(exec_path, exec_record)
+    
     loop.updated_at = datetime.now(timezone.utc).isoformat()
+    evidence = [loop.id, action.id]
+    artifacts = [
+        str(task_file.relative_to(BASE)),
+        str(exec_path.relative_to(BASE)),
+    ]
     
     if target_url:
-        exec_record = {
-            "action_id": action.id,
-            "loop_id": loop.id,
-            "status": "pending_browser_execution",
-            "target_url": target_url,
-            "task_file": str(task_file),
-            "workdir": str(workdir),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        exec_path = workdir / "execution.json"
+        browser_result = _navigate_and_capture(target_url, workdir)
+        
+        # Update execution record
+        exec_record["status"] = "completed" if browser_result["success"] else "failed"
+        exec_record["completed_at"] = datetime.now(timezone.utc).isoformat()
+        if browser_result["success"]:
+            exec_record["url"] = browser_result["url"]
+            exec_record["title"] = browser_result["title"]
+            exec_record["screenshot_path"] = browser_result["screenshot_path"]
+            exec_record["content_path"] = browser_result["content_path"]
+            evidence.extend([
+                str((workdir / "screenshot.png").relative_to(BASE)),
+                str((workdir / "content.txt").relative_to(BASE)),
+            ])
+        else:
+            exec_record["error"] = browser_result["error"]
+        
         write_json(exec_path, exec_record)
         
-        loop.status = "open"
-        loop.next_step = f"Navigate to {target_url} and capture evidence"
-        summary = f"Browser loop '{loop.title}' queued for execution: {target_url}"
-        evidence = [loop.id, action.id, str(task_file), str(exec_path)]
-        artifacts = [str(task_file.relative_to(BASE)), str(exec_path.relative_to(BASE))]
+        if browser_result["success"]:
+            loop.status = "resolved"
+            loop.next_step = "Browser task executed successfully"
+            summary = f"Browser loop '{loop.title}' completed: navigated to {target_url}"
+        else:
+            loop.status = "blocked"
+            loop.next_step = f"Browser failed: {browser_result['error'][:80]}"
+            summary = f"Browser loop '{loop.title}' failed: {browser_result['error']}"
     else:
         loop.status = "blocked"
         loop.next_step = "No URL found - requires clarification"
         summary = f"Browser loop '{loop.title}' blocked: no URL found"
-        evidence = [loop.id, action.id, str(task_file)]
-        artifacts = [str(task_file.relative_to(BASE))]
+        exec_record["status"] = "failed"
+        exec_record["error"] = "No URL found in task"
+        write_json(exec_path, exec_record)
     
     loop.evidence.extend(evidence)
     artifact = _write_change(action, summary)
