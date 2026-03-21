@@ -111,7 +111,7 @@ def show_diff(old_text: str, new_text: str, context: str = "") -> None:
         old_lines, new_lines, fromfile=fromfile, tofile=tofile, lineterm=""
     )
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"EDIT PREVIEW: {context}")
     print("=" * 60)
     for line in diff:

@@ -18,30 +18,33 @@ class BootstrapTests(unittest.TestCase):
             state_dir = base / "state"
             runs_dir = base / "runs"
 
-            with patch.object(store, "BASE", base), patch.object(
-                store, "STATE_DIR", state_dir
-            ), patch.object(store, "RUNS_DIR", runs_dir), patch.object(
-                store,
-                "RUNTIME_JSON_DEFAULTS",
-                {
-                    state_dir
-                    / "current_state.json": {
-                        "goal": "Keep hexclamp coherent and progressing",
-                        "active_context": [],
-                        "recent_events": [],
-                        "current_actions": [],
-                        "open_loops": [],
-                        "last_verified_result": None,
+            with (
+                patch.object(store, "BASE", base),
+                patch.object(store, "STATE_DIR", state_dir),
+                patch.object(store, "RUNS_DIR", runs_dir),
+                patch.object(
+                    store,
+                    "RUNTIME_JSON_DEFAULTS",
+                    {
+                        state_dir / "current_state.json": {
+                            "goal": "Keep hexclamp coherent and progressing",
+                            "active_context": [],
+                            "recent_events": [],
+                            "current_actions": [],
+                            "open_loops": [],
+                            "last_verified_result": None,
+                        },
+                        state_dir / "event_queue.json": [],
+                        state_dir / "open_loops.json": [],
                     },
-                    state_dir / "event_queue.json": [],
-                    state_dir / "open_loops.json": [],
-                },
-            ), patch.object(
-                store,
-                "RUNTIME_TEXT_DEFAULTS",
-                {
-                    state_dir / "recent_changes.md": "# Recent Changes\n\n",
-                },
+                ),
+                patch.object(
+                    store,
+                    "RUNTIME_TEXT_DEFAULTS",
+                    {
+                        state_dir / "recent_changes.md": "# Recent Changes\n\n",
+                    },
+                ),
             ):
                 created = store.bootstrap_runtime_state()
 
@@ -72,28 +75,31 @@ class BootstrapTests(unittest.TestCase):
             state_dir = base / "state"
             runs_dir = base / "runs"
 
-            with patch.object(store, "BASE", base), patch.object(
-                store, "STATE_DIR", state_dir
-            ), patch.object(store, "RUNS_DIR", runs_dir), patch.object(
-                store,
-                "RUNTIME_JSON_DEFAULTS",
-                {
-                    state_dir
-                    / "current_state.json": {
-                        "goal": "x",
-                        "active_context": [],
-                        "recent_events": [],
-                        "current_actions": [],
-                        "open_loops": [],
-                        "last_verified_result": None,
+            with (
+                patch.object(store, "BASE", base),
+                patch.object(store, "STATE_DIR", state_dir),
+                patch.object(store, "RUNS_DIR", runs_dir),
+                patch.object(
+                    store,
+                    "RUNTIME_JSON_DEFAULTS",
+                    {
+                        state_dir / "current_state.json": {
+                            "goal": "x",
+                            "active_context": [],
+                            "recent_events": [],
+                            "current_actions": [],
+                            "open_loops": [],
+                            "last_verified_result": None,
+                        },
                     },
-                },
-            ), patch.object(
-                store,
-                "RUNTIME_TEXT_DEFAULTS",
-                {
-                    state_dir / "recent_changes.md": "# Recent Changes\n\n",
-                },
+                ),
+                patch.object(
+                    store,
+                    "RUNTIME_TEXT_DEFAULTS",
+                    {
+                        state_dir / "recent_changes.md": "# Recent Changes\n\n",
+                    },
+                ),
             ):
                 first = store.bootstrap_runtime_state()
                 second = store.bootstrap_runtime_state()

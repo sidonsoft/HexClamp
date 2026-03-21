@@ -123,10 +123,10 @@ def execute_message_for_event(
 
 ## Parsed
 
-- channel: {task.get('channel')}
-- recipient: {task.get('recipient')}
-- requires_approval: {task.get('requires_approval')}
-- content: {task.get('content', '')[:100]}
+- channel: {task.get("channel")}
+- recipient: {task.get("recipient")}
+- requires_approval: {task.get("requires_approval")}
+- content: {task.get("content", "")[:100]}
 
 ## Next Steps
 

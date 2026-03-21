@@ -24,8 +24,7 @@ def _fresh_browser_patches(tmp: Path):
     browser_dir = runs_dir / "browser_tasks"
 
     runtime_json_defaults = {
-        state_dir
-        / "current_state.json": {
+        state_dir / "current_state.json": {
             "goal": "Keep hexclamp coherent and progressing",
             "active_context": [],
             "recent_events": [],
