@@ -13,8 +13,12 @@ python3 agents/loop.py init
 # Run tests
 make test
 
-# Lint
+# Lint + format check
 ruff check .
+ruff format --check .
+
+# Type check
+mypy agents/ scripts/ --ignore-missing-imports
 ```
 
 ## Branch conventions
@@ -52,12 +56,7 @@ Prefixes: `fix:`, `feat:`, `chore:`, `docs:`, `test:`.
    "enum": ["research", "code", "browser", "message", "wait", "<new_type>"]
    ```
 
-2. **Executor function** — add to `agents/executors.py`:
-   ```python
-   def execute_<name>_for_loop(loop: OpenLoop, state: CurrentState) -> Result:
-       ...
-       return Result(...)
-   ```
+2. **Executor implementation** — add the new logic to the appropriate module under `agents/executors/` (for example `browser.py`, `code_executor.py`, or a new module if warranted) and re-export any public surface from `agents/executors/__init__.py`.
 
 3. **Classifier** — update `agents/planner.py` `classify_text()` to route inputs to the new type.
 

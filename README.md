@@ -31,7 +31,13 @@ agents/
   condenser.py  # Compress events + loops into CurrentState
   planner.py    # Rank open loops, classify inputs, select next actions
   verifier.py   # Validate claimed results against evidence
-  executors.py  # Task executors: research, code, browser, messaging
+  executors/
+    __init__.py      # Public executor exports (backward-compatible surface)
+    base.py          # Shared executor helpers, policies, quality gates
+    browser.py       # Browser executor
+    code_executor.py # Code executor
+    messaging.py     # Messaging executor
+    research.py      # Research executor
   store.py      # Atomic JSON file I/O
   validate.py   # JSON Schema validation with caching
 
@@ -90,14 +96,14 @@ make test
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Yes (prod) | dev fallback | Bot token for Telegram delivery. Do not commit production tokens. |
+| `TELEGRAM_BOT_TOKEN` | Yes (for messaging) | none | Bot token for Telegram delivery. Required when the messaging executor is enabled. Do not commit production tokens. |
 
 ## Testing
 
-47 tests — all passing:
+49 tests — all passing:
 
-```
-python3 -m unittest discover -s tests -v
+```bash
+python3 -m pytest -q
 ```
 
 | Test file | What it covers |
@@ -112,13 +118,14 @@ python3 -m unittest discover -s tests -v
 
 ## CI
 
-GitHub Actions runs syntax checks and the full test suite on every push to `main` and on all pull requests.
+GitHub Actions runs `ruff check`, `ruff format --check`, `mypy agents/ scripts/ --ignore-missing-imports`, and `pytest --cov` on every push to `main` and on all pull requests.
 
 ## Adding a new executor
 
-1. Add the executor function to `agents/executors.py`
+1. Add the executor implementation to the appropriate module under `agents/executors/` and re-export it from `agents/executors/__init__.py`
 2. Add the action type to `schemas/action.schema.json` enum
-3. Create a role prompt in `prompts/executors/<name>.md`
-4. Add `verification.required_for` entry in `config/policies.yaml` if evidence is needed
-5. Add tests in `tests/`
-6. Update this README's executor status table
+3. Update `agents/planner.py` routing so the new executor can be selected
+4. Create a role prompt in `prompts/executors/<name>.md`
+5. Add `verification.required_for` entry in `config/policies.yaml` if evidence is needed
+6. Add tests in `tests/`
+7. Update this README's executor status table
