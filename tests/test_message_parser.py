@@ -25,7 +25,9 @@ class MessageParserTests(unittest.TestCase):
         self.assertEqual(task["content"], "hello there")
 
     def test_urgent_message_skips_approval(self):
-        task = _parse_message_task("urgent: send telegram message to @sidonsoft: ping now")
+        task = _parse_message_task(
+            "urgent: send telegram message to @sidonsoft: ping now"
+        )
         self.assertFalse(task["requires_approval"])
 
 

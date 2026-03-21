@@ -24,7 +24,8 @@ def _fresh_browser_patches(tmp: Path):
     browser_dir = runs_dir / "browser_tasks"
 
     runtime_json_defaults = {
-        state_dir / "current_state.json": {
+        state_dir
+        / "current_state.json": {
             "goal": "Keep hexclamp coherent and progressing",
             "active_context": [],
             "recent_events": [],
@@ -53,7 +54,13 @@ def _fresh_browser_patches(tmp: Path):
 
 class MockPage:
     """Minimal mock of a Playwright page."""
-    def __init__(self, url="https://example.com", title="Example Domain", body_text="Hello, World!\nThis is example.com."):
+
+    def __init__(
+        self,
+        url="https://example.com",
+        title="Example Domain",
+        body_text="Hello, World!\nThis is example.com.",
+    ):
         self._url = url
         self._title = title
         self._body_text = body_text
@@ -72,18 +79,20 @@ class MockPage:
     def screenshot(self, path, full_page):
         # Write a minimal valid PNG (1x1 transparent pixel)
         import struct
+
         # Minimal PNG: 1x1 transparent
         png_data = (
-            b'\x89PNG\r\n\x1a\n'
-            b'\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89'
-            b'\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4'
-            b'\x00\x00\x00\x00IEND\xaeB`\x82'
+            b"\x89PNG\r\n\x1a\n"
+            b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+            b"\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4"
+            b"\x00\x00\x00\x00IEND\xaeB`\x82"
         )
         Path(path).write_bytes(png_data)
 
 
 class MockBrowser:
     """Minimal mock of a Playwright browser."""
+
     def __init__(self, page=None):
         self._page = page or MockPage()
 
@@ -119,9 +128,11 @@ def _mock_navigate_and_capture_failure(url: str, workdir: Path):
 
 class Event:
     """Minimal mock event for testing."""
+
     def __init__(self, text="navigate to https://example.com", priority="normal"):
         from uuid import uuid4
         from datetime import datetime, timezone
+
         self.id = f"evt-{uuid4().hex[:8]}"
         self.timestamp = datetime.now(timezone.utc).isoformat()
         self.priority = priority
@@ -130,17 +141,28 @@ class Event:
 
 class Action:
     """Minimal mock action for testing."""
+
     def __init__(self, action_id=None, action_type="browser"):
         from uuid import uuid4
+
         self.id = action_id or f"act-{uuid4().hex[:8]}"
         self.type = action_type
 
 
 class OpenLoop:
     """Minimal mock open loop for testing."""
-    def __init__(self, loop_id=None, title="Browser task", owner="browser", status="open", priority="normal"):
+
+    def __init__(
+        self,
+        loop_id=None,
+        title="Browser task",
+        owner="browser",
+        status="open",
+        priority="normal",
+    ):
         from uuid import uuid4
         from datetime import datetime, timezone
+
         self.id = loop_id or f"loop-{uuid4().hex[:8]}"
         self.title = title
         self.owner = owner
@@ -163,56 +185,79 @@ class TestExecuteBrowserForEvent(unittest.TestCase):
             with p[0], p[1], p[2], p[3], p[4], p[5], p[6]:
                 # Mock the browser navigation
                 with patch.object(
-                    executors, "_navigate_and_capture",
-                    side_effect=lambda url, workdir: _mock_navigate_and_capture_success(url, workdir)
+                    executors,
+                    "_navigate_and_capture",
+                    side_effect=lambda url, workdir: _mock_navigate_and_capture_success(
+                        url, workdir
+                    ),
                 ):
                     # Also create the actual files
                     def mock_with_files(url, workdir):
                         result = _mock_navigate_and_capture_success(url, workdir)
                         # Create actual files
                         Path(result["screenshot_path"]).write_bytes(
-                            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+                            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
                         )
-                        Path(result["content_path"]).write_text("Example Domain\nHello, World!", encoding="utf-8")
+                        Path(result["content_path"]).write_text(
+                            "Example Domain\nHello, World!", encoding="utf-8"
+                        )
                         return result
-                    
-                    with patch.object(executors.browser, "_navigate_and_capture", side_effect=mock_with_files):
+
+                    with patch.object(
+                        executors.browser,
+                        "_navigate_and_capture",
+                        side_effect=mock_with_files,
+                    ):
                         action = Action()
-                        event = Event(text="navigate to https://example.com and take screenshot")
-                        
-                        summary, evidence, artifacts, loop = executors.execute_browser_for_event(action, event)
-                
+                        event = Event(
+                            text="navigate to https://example.com and take screenshot"
+                        )
+
+                        summary, evidence, artifacts, loop = (
+                            executors.execute_browser_for_event(action, event)
+                        )
+
                 # Verify loop properties
                 self.assertEqual(loop.owner, "browser")
                 self.assertIn(loop.status, {"resolved", "open"})
-                
+
                 # Verify task directory exists
                 task_dirs = list(browser_dir.iterdir())
                 self.assertEqual(len(task_dirs), 1)
                 task_dir = task_dirs[0]
-                
+
                 # Verify execution.json exists and has correct status
-                exec_data = json.loads((task_dir / "execution.json").read_text(encoding="utf-8"))
+                exec_data = json.loads(
+                    (task_dir / "execution.json").read_text(encoding="utf-8")
+                )
                 self.assertEqual(exec_data["status"], "completed")
                 self.assertEqual(exec_data["target_url"], "https://example.com")
-                
+
                 # Verify screenshot and content files exist
                 self.assertTrue((task_dir / "screenshot.png").exists())
                 self.assertTrue((task_dir / "content.txt").exists())
-                
+
                 # Verify screenshot.png is a valid PNG
                 png_data = (task_dir / "screenshot.png").read_bytes()
-                self.assertTrue(png_data.startswith(b'\x89PNG'), "Screenshot should be a valid PNG file")
-                
+                self.assertTrue(
+                    png_data.startswith(b"\x89PNG"),
+                    "Screenshot should be a valid PNG file",
+                )
+
                 # Verify content.txt has text
                 content = (task_dir / "content.txt").read_text(encoding="utf-8")
                 self.assertTrue(len(content) > 0, "Content should not be empty")
-                
+
                 # Verify evidence includes screenshot and content
                 screenshot_evidence = [e for e in evidence if "screenshot.png" in e]
                 content_evidence = [e for e in evidence if "content.txt" in e]
-                self.assertTrue(len(screenshot_evidence) > 0, "Evidence should include screenshot.png")
-                self.assertTrue(len(content_evidence) > 0, "Evidence should include content.txt")
+                self.assertTrue(
+                    len(screenshot_evidence) > 0,
+                    "Evidence should include screenshot.png",
+                )
+                self.assertTrue(
+                    len(content_evidence) > 0, "Evidence should include content.txt"
+                )
 
     def test_failed_navigation_sets_status_to_failed(self):
         """Failed browser navigation sets execution status to 'failed' with error."""
@@ -220,28 +265,37 @@ class TestExecuteBrowserForEvent(unittest.TestCase):
             p, base, state_dir, browser_dir = _fresh_browser_patches(tmp)
             with p[0], p[1], p[2], p[3], p[4], p[5], p[6]:
                 with patch.object(
-                    executors, "_navigate_and_capture",
-                    side_effect=lambda url, workdir: _mock_navigate_and_capture_failure(url, workdir)
+                    executors,
+                    "_navigate_and_capture",
+                    side_effect=lambda url, workdir: _mock_navigate_and_capture_failure(
+                        url, workdir
+                    ),
                 ):
                     action = Action()
-                    event = Event(text="navigate to https://this-domain-does-not-exist-xyz.com")
-                    
-                    summary, evidence, artifacts, loop = executors.execute_browser_for_event(action, event)
-            
+                    event = Event(
+                        text="navigate to https://this-domain-does-not-exist-xyz.com"
+                    )
+
+                    summary, evidence, artifacts, loop = (
+                        executors.execute_browser_for_event(action, event)
+                    )
+
                 # Verify loop is blocked
                 self.assertEqual(loop.status, "blocked")
                 self.assertTrue(len(loop.blocked_by) > 0)
-                
+
                 # Verify task directory exists
                 task_dirs = list(browser_dir.iterdir())
                 self.assertEqual(len(task_dirs), 1)
                 task_dir = task_dirs[0]
-                
+
                 # Verify execution.json has failed status
-                exec_data = json.loads((task_dir / "execution.json").read_text(encoding="utf-8"))
+                exec_data = json.loads(
+                    (task_dir / "execution.json").read_text(encoding="utf-8")
+                )
                 self.assertEqual(exec_data["status"], "failed")
                 self.assertIn("error", exec_data)
-                
+
                 # Verify screenshot and content were NOT created
                 self.assertFalse((task_dir / "screenshot.png").exists())
                 self.assertFalse((task_dir / "content.txt").exists())
@@ -253,16 +307,20 @@ class TestExecuteBrowserForEvent(unittest.TestCase):
             with p[0], p[1], p[2], p[3], p[4], p[5], p[6]:
                 action = Action()
                 event = Event(text="do some browser stuff")  # No URL
-                
-                summary, evidence, artifacts, loop = executors.execute_browser_for_event(action, event)
-            
+
+                summary, evidence, artifacts, loop = (
+                    executors.execute_browser_for_event(action, event)
+                )
+
                 self.assertEqual(loop.status, "blocked")
                 self.assertIn("no-url-found", loop.blocked_by)
-                
+
                 # Verify execution record has failed status
                 task_dirs = list(browser_dir.iterdir())
                 task_dir = task_dirs[0]
-                exec_data = json.loads((task_dir / "execution.json").read_text(encoding="utf-8"))
+                exec_data = json.loads(
+                    (task_dir / "execution.json").read_text(encoding="utf-8")
+                )
                 self.assertEqual(exec_data["status"], "failed")
 
 
@@ -274,33 +332,44 @@ class TestExecuteBrowserForLoop(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             p, base, state_dir, browser_dir = _fresh_browser_patches(tmp)
             with p[0], p[1], p[2], p[3], p[4], p[5], p[6]:
+
                 def mock_with_files(url, workdir):
                     result = _mock_navigate_and_capture_success(url, workdir)
                     Path(result["screenshot_path"]).write_bytes(
-                        b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+                        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
                     )
-                    Path(result["content_path"]).write_text("Example Domain content", encoding="utf-8")
+                    Path(result["content_path"]).write_text(
+                        "Example Domain content", encoding="utf-8"
+                    )
                     return result
-                
-                with patch.object(executors.browser, "_navigate_and_capture", side_effect=mock_with_files):
+
+                with patch.object(
+                    executors.browser,
+                    "_navigate_and_capture",
+                    side_effect=mock_with_files,
+                ):
                     action = Action()
                     loop = OpenLoop(
                         title="navigate to https://example.com and capture",
                         owner="browser",
                     )
-                    
-                    summary, evidence, artifacts, updated_loop = executors.execute_browser_for_loop(action, loop)
-                
+
+                    summary, evidence, artifacts, updated_loop = (
+                        executors.execute_browser_for_loop(action, loop)
+                    )
+
                 self.assertEqual(updated_loop.status, "resolved")
                 self.assertIn("screenshot.png", " ".join(evidence))
                 self.assertIn("content.txt", " ".join(evidence))
-                
+
                 # Verify task dir
                 task_dirs = list(browser_dir.iterdir())
                 self.assertEqual(len(task_dirs), 1)
                 task_dir = task_dirs[0]
-                
-                exec_data = json.loads((task_dir / "execution.json").read_text(encoding="utf-8"))
+
+                exec_data = json.loads(
+                    (task_dir / "execution.json").read_text(encoding="utf-8")
+                )
                 self.assertEqual(exec_data["status"], "completed")
                 self.assertTrue((task_dir / "screenshot.png").exists())
                 self.assertTrue((task_dir / "content.txt").exists())
@@ -311,23 +380,30 @@ class TestExecuteBrowserForLoop(unittest.TestCase):
             p, base, state_dir, browser_dir = _fresh_browser_patches(tmp)
             with p[0], p[1], p[2], p[3], p[4], p[5], p[6]:
                 with patch.object(
-                    executors, "_navigate_and_capture",
-                    side_effect=lambda url, workdir: _mock_navigate_and_capture_failure(url, workdir)
+                    executors,
+                    "_navigate_and_capture",
+                    side_effect=lambda url, workdir: _mock_navigate_and_capture_failure(
+                        url, workdir
+                    ),
                 ):
                     action = Action()
                     loop = OpenLoop(
                         title="navigate to https://bad-domain-xyz123.invalid",
                         owner="browser",
                     )
-                    
-                    summary, evidence, artifacts, updated_loop = executors.execute_browser_for_loop(action, loop)
-                
+
+                    summary, evidence, artifacts, updated_loop = (
+                        executors.execute_browser_for_loop(action, loop)
+                    )
+
                 self.assertEqual(updated_loop.status, "blocked")
-                
+
                 # Verify execution record
                 task_dirs = list(browser_dir.iterdir())
                 task_dir = task_dirs[0]
-                exec_data = json.loads((task_dir / "execution.json").read_text(encoding="utf-8"))
+                exec_data = json.loads(
+                    (task_dir / "execution.json").read_text(encoding="utf-8")
+                )
                 self.assertEqual(exec_data["status"], "failed")
                 self.assertIn("error", exec_data)
 
@@ -341,13 +417,17 @@ class TestExecuteBrowserForLoop(unittest.TestCase):
                     title="take a screenshot in the browser",  # No URL
                     owner="browser",
                 )
-                
-                summary, evidence, artifacts, updated_loop = executors.execute_browser_for_loop(action, loop)
-            
+
+                summary, evidence, artifacts, updated_loop = (
+                    executors.execute_browser_for_loop(action, loop)
+                )
+
                 self.assertEqual(updated_loop.status, "blocked")
                 task_dirs = list(browser_dir.iterdir())
                 task_dir = task_dirs[0]
-                exec_data = json.loads((task_dir / "execution.json").read_text(encoding="utf-8"))
+                exec_data = json.loads(
+                    (task_dir / "execution.json").read_text(encoding="utf-8")
+                )
                 self.assertEqual(exec_data["status"], "failed")
 
 
@@ -448,7 +528,9 @@ class TestNavigateAndCaptureRejectsDangerousURLs(unittest.TestCase):
         """localhost URL must produce a failure result, not crash."""
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
-            result = executors._navigate_and_capture("http://localhost:8080/admin", workdir)
+            result = executors._navigate_and_capture(
+                "http://localhost:8080/admin", workdir
+            )
             self.assertFalse(result["success"])
             self.assertIn("error", result)
 
@@ -456,7 +538,9 @@ class TestNavigateAndCaptureRejectsDangerousURLs(unittest.TestCase):
         """Private IP URL must produce a failure result, not crash."""
         with tempfile.TemporaryDirectory() as tmp:
             workdir = Path(tmp)
-            result = executors._navigate_and_capture("http://192.168.1.100/admin", workdir)
+            result = executors._navigate_and_capture(
+                "http://192.168.1.100/admin", workdir
+            )
             self.assertFalse(result["success"])
             self.assertIn("error", result)
 

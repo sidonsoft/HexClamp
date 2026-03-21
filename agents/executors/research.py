@@ -12,7 +12,9 @@ from .base import (
 )
 
 
-def execute_research_for_event(action: Action, event: Event) -> tuple[str, list[str], list[str], OpenLoop]:
+def execute_research_for_event(
+    action: Action, event: Event
+) -> tuple[str, list[str], list[str], OpenLoop]:
     """Execute research task for an event."""
     loop_status, next_step, blocked_by, summary = _initial_loop_state(event, "research")
     artifact = _write_change(action, summary)
@@ -31,7 +33,9 @@ def execute_research_for_event(action: Action, event: Event) -> tuple[str, list[
     return summary, [event.id], [artifact], loop
 
 
-def execute_research_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[str], list[str], OpenLoop]:
+def execute_research_for_loop(
+    action: Action, loop: OpenLoop
+) -> tuple[str, list[str], list[str], OpenLoop]:
     """Execute research task for a loop."""
     now = datetime.now(timezone.utc).isoformat()
 
@@ -41,11 +45,15 @@ def execute_research_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list
         if len(loop.evidence) >= STALE_EVIDENCE_THRESHOLD:
             loop.status = "stale"
             loop.next_step = "Stale blocked loop; requires operator review"
-            summary = f"Loop '{loop.title}' became stale after repeated blocked reviews."
+            summary = (
+                f"Loop '{loop.title}' became stale after repeated blocked reviews."
+            )
     else:
         if len(loop.evidence) >= STALE_EVIDENCE_THRESHOLD:
             loop.status = "resolved"
-            loop.next_step = "Research loop exhausted; treat as resolved unless reopened"
+            loop.next_step = (
+                "Research loop exhausted; treat as resolved unless reopened"
+            )
             summary = f"Loop '{loop.title}' reached resolution threshold."
         else:
             loop.status = "open"

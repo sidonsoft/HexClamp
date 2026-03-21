@@ -43,7 +43,9 @@ class TaskCompletionTests(unittest.TestCase):
             }
             verification = task_completion.verify_browser_task(task)
             self.assertTrue(verification["verified"])
-            self.assertTrue(any("Screenshot captured" in c for c in verification["checks"]))
+            self.assertTrue(
+                any("Screenshot captured" in c for c in verification["checks"])
+            )
             self.assertTrue(any("URL verified" in c for c in verification["checks"]))
 
     def test_verify_code_task_checks_changed_files_and_verified_flag(self):
@@ -69,16 +71,22 @@ class TaskCompletionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             state_dir = Path(tmp)
             loop_file = state_dir / "open_loops.json"
-            loop_file.write_text(json.dumps([
-                {
-                    "id": "loop-evt-123",
-                    "status": "open",
-                    "next_step": "Pending",
-                    "blocked_by": [],
-                    "evidence": [],
-                    "updated_at": "2026-03-14T00:00:00+00:00",
-                }
-            ], indent=2), encoding="utf-8")
+            loop_file.write_text(
+                json.dumps(
+                    [
+                        {
+                            "id": "loop-evt-123",
+                            "status": "open",
+                            "next_step": "Pending",
+                            "blocked_by": [],
+                            "evidence": [],
+                            "updated_at": "2026-03-14T00:00:00+00:00",
+                        }
+                    ],
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
 
             task = {"task": {"event_id": "evt-123"}}
             verification = {"verified": True, "checks": ["ok"]}
@@ -89,7 +97,9 @@ class TaskCompletionTests(unittest.TestCase):
             loops = json.loads(loop_file.read_text(encoding="utf-8"))
             self.assertEqual(loops[0]["status"], "resolved")
             self.assertEqual(loops[0]["next_step"], "Task completed and verified")
-            self.assertTrue(any(item.startswith("verified:") for item in loops[0]["evidence"]))
+            self.assertTrue(
+                any(item.startswith("verified:") for item in loops[0]["evidence"])
+            )
 
 
 if __name__ == "__main__":

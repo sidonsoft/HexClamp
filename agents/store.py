@@ -14,7 +14,8 @@ SCHEMAS_DIR = BASE / "schemas"
 
 
 RUNTIME_JSON_DEFAULTS = {
-    STATE_DIR / "current_state.json": {
+    STATE_DIR
+    / "current_state.json": {
         "goal": "Keep hexclamp coherent and progressing",
         "active_context": [],
         "recent_events": [],
@@ -65,7 +66,9 @@ def write_json(path: Path, data: Any) -> None:
     """Atomic JSON write: write to temp file then rename to target."""
     path.parent.mkdir(parents=True, exist_ok=True)
     # Write to a temp file in the same directory (same filesystem for atomic rename)
-    fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp_", suffix=".json")
+    fd, tmp_path = tempfile.mkstemp(
+        dir=str(path.parent), prefix=".tmp_", suffix=".json"
+    )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(json.dumps(data, indent=2) + "\n")

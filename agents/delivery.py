@@ -47,7 +47,9 @@ class TelegramDeliveryAgent:
                 )
 
         # Send the message
-        return self._send_message(chat_id, content, parse_mode, original_recipient=recipient)
+        return self._send_message(
+            chat_id, content, parse_mode, original_recipient=recipient
+        )
 
     def _resolve_username(self, username: str) -> Optional[int]:
         """Resolve a Telegram username (@xxx) to a numeric chat_id via getChat API."""
@@ -90,7 +92,9 @@ class TelegramDeliveryAgent:
                 )
 
             if status_code == 429:
-                retry_after = response.json().get("parameters", {}).get("retry_after", "unknown")
+                retry_after = (
+                    response.json().get("parameters", {}).get("retry_after", "unknown")
+                )
                 return DeliveryResult(
                     success=False,
                     error=f"429 Too Many Requests: Rate limit exceeded. Retry after {retry_after} seconds.",

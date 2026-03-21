@@ -27,10 +27,25 @@ def _initial_loop_state(event: Event, owner: str) -> tuple[str, str, list[str], 
     normalized = text.lower()
 
     if "done" in normalized or "resolved" in normalized:
-        return "resolved", "No further action required.", [], f"Observed resolved request: {text}"
+        return (
+            "resolved",
+            "No further action required.",
+            [],
+            f"Observed resolved request: {text}",
+        )
     if "blocked" in normalized or "waiting" in normalized:
-        return "blocked", "Wait for dependency or operator input.", ["external dependency"], f"Observed blocked request: {text}"
-    return "open", "Decide whether this item needs deeper execution.", [], f"Observed request: {text}" if text else f"Observed event {event.id}"
+        return (
+            "blocked",
+            "Wait for dependency or operator input.",
+            ["external dependency"],
+            f"Observed blocked request: {text}",
+        )
+    return (
+        "open",
+        "Decide whether this item needs deeper execution.",
+        [],
+        f"Observed request: {text}" if text else f"Observed event {event.id}",
+    )
 
 
 def _load_policies() -> dict:
@@ -47,7 +62,9 @@ def _load_policies() -> dict:
     return _policies_cache
 
 
-def _quality_gate_changed_files(changed_files: list[str], workspace_root: Path) -> tuple[list[str], list[str]]:
+def _quality_gate_changed_files(
+    changed_files: list[str], workspace_root: Path
+) -> tuple[list[str], list[str]]:
     """
     Run py_compile on each changed .py file and collect evidence.
     Returns (syntax_ok_files, syntax_failures).
@@ -79,7 +96,7 @@ def _run_python_test(file_path: Path) -> tuple[bool, str]:
             [sys.executable, "-m", "py_compile", str(file_path)],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
         if result.returncode == 0:
             return True, f"Syntax check passed for {file_path.name}"
