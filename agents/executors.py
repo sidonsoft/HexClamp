@@ -12,6 +12,7 @@ from urllib.parse import quote_plus
 
 from models import Action, Event, OpenLoop
 from store import BASE, append_markdown, write_json
+from agents.delivery import TelegramDeliveryAgent
 
 
 STALE_EVIDENCE_THRESHOLD = 3
@@ -1098,21 +1099,72 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
         next_step = f"Send {task['channel']} message to {task['recipient']}"
         summary = f"Messaging loop '{loop.title}' ready: {task['channel']} to {task['recipient']}"
     
-    # Write execution record
-    exec_record = {
-        "action_id": action.id,
-        "loop_id": loop.id,
-        "status": "pending_messaging_execution",
-        "target_channel": task["channel"],
-        "target_recipient": task["recipient"],
-        "content_preview": task["content"][:100] if task["content"] else None,
-        "requires_approval": task["requires_approval"],
-        "task_file": str(task_file),
-        "workdir": str(workdir),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-    exec_path = workdir / "execution.json"
-    write_json(exec_path, exec_record)
+    # Sentinel approval check for blocked loops
+    if loop_status == "blocked":
+        sentinel_path = BASE / "runs" / "messaging_tasks" / action.id / "approved"
+        if sentinel_path.exists():
+            # Sentinel file found — clear blocked status and proceed
+            loop_status = "open"
+            blocked_by = []
+            loop.blocked_by = []
+            loop.status = "open"
+            next_step = f"Send {task['channel']} message to {task['recipient']}"
+            summary = f"Messaging loop '{loop.title}' approved via sentinel: {task['channel']} to {task['recipient']}"
+            sentinel_path.unlink()
+    
+    # Telegram delivery: send if channel is telegram and not blocked
+    if task["channel"] == "telegram" and loop_status != "blocked" and task.get("recipient"):
+        delivery_agent = TelegramDeliveryAgent()
+        result = delivery_agent.send(recipient=task["recipient"], content=task["content"])
+        
+        # Update execution record with delivery result
+        exec_record = {
+            "action_id": action.id,
+            "loop_id": loop.id,
+            "status": "pending_messaging_execution",
+            "target_channel": task["channel"],
+            "target_recipient": task["recipient"],
+            "content_preview": task["content"][:100] if task["content"] else None,
+            "requires_approval": task["requires_approval"],
+            "task_file": str(task_file),
+            "workdir": str(workdir),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "sent": result.success,
+            "sent_at": datetime.now(timezone.utc).isoformat() if result.success else None,
+        }
+        if result.success:
+            exec_record["message_id"] = result.message_id
+        else:
+            exec_record["error"] = result.error
+        
+        exec_path = workdir / "execution.json"
+        write_json(exec_path, exec_record)
+        
+        if result.success:
+            loop_status = "resolved"
+            next_step = f"Message sent successfully via Telegram to {task['recipient']}"
+            summary = f"Telegram message delivered to {task['recipient']}: {task['content'][:50]}..."
+        else:
+            loop_status = "blocked"
+            blocked_by = ["delivery failed"]
+            next_step = f"Telegram delivery failed: {result.error}"
+            summary = f"Telegram delivery failed to {task['recipient']}: {result.error}"
+    else:
+        # Write execution record (no delivery attempted)
+        exec_record = {
+            "action_id": action.id,
+            "loop_id": loop.id,
+            "status": "pending_messaging_execution",
+            "target_channel": task["channel"],
+            "target_recipient": task["recipient"],
+            "content_preview": task["content"][:100] if task["content"] else None,
+            "requires_approval": task["requires_approval"],
+            "task_file": str(task_file),
+            "workdir": str(workdir),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        exec_path = workdir / "execution.json"
+        write_json(exec_path, exec_record)
     
     evidence = [loop.id, action.id, str(task_file), str(exec_path)]
     artifacts = [str(task_file.relative_to(BASE)), str(exec_path.relative_to(BASE))]
