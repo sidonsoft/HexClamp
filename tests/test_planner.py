@@ -11,7 +11,18 @@ from planner import plan_next_actions, rank_open_loops
 
 
 class PlannerTests(unittest.TestCase):
-    def _loop(self, loop_id: str, *, priority: str, status: str = "open", owner: str = "research", blocked_by=None, evidence=None, created_hours_ago: int = 1, updated_hours_ago: int = 1):
+    def _loop(
+        self,
+        loop_id: str,
+        *,
+        priority: str,
+        status: str = "open",
+        owner: str = "research",
+        blocked_by=None,
+        evidence=None,
+        created_hours_ago: int = 1,
+        updated_hours_ago: int = 1,
+    ):
         now = datetime.now(timezone.utc)
         return OpenLoop(
             id=loop_id,

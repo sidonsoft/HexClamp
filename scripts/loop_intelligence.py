@@ -38,7 +38,9 @@ def format_table(loops: list[Any], show_scores: bool = False) -> str:
     """Format loops as a table."""
     lines = []
     lines.append("=" * 100)
-    lines.append(f"{'ID':<36} {'Status':<8} {'Priority':<8} {'Owner':<12} {'Evidence':<10} {'Blockers':<8}")
+    lines.append(
+        f"{'ID':<36} {'Status':<8} {'Priority':<8} {'Owner':<12} {'Evidence':<10} {'Blockers':<8}"
+    )
     lines.append("-" * 100)
 
     for i, loop in enumerate(loops):
@@ -68,10 +70,25 @@ def format_table(loops: list[Any], show_scores: bool = False) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze and rank open loops")
-    parser.add_argument("--show-all", "-a", action="store_true", help="Show all loops including resolved")
-    parser.add_argument("--stale-only", "-s", action="store_true", help="Show only stale loops")
-    parser.add_argument("--format", "-f", choices=["table", "json"], default="table", help="Output format")
-    parser.add_argument("--show-scores", action="store_true", help="Show urgency scores")
+    parser.add_argument(
+        "--show-all",
+        "-a",
+        action="store_true",
+        help="Show all loops including resolved",
+    )
+    parser.add_argument(
+        "--stale-only", "-s", action="store_true", help="Show only stale loops"
+    )
+    parser.add_argument(
+        "--format",
+        "-f",
+        choices=["table", "json"],
+        default="table",
+        help="Output format",
+    )
+    parser.add_argument(
+        "--show-scores", action="store_true", help="Show urgency scores"
+    )
     args = parser.parse_args()
 
     loops = load_loops()
@@ -82,7 +99,11 @@ def main():
 
     # Filter based on args
     if not args.show_all:
-        loops = [loop_ for loop_ in loops if getattr(loop_, "status", "") in {"open", "blocked"}]
+        loops = [
+            loop_
+            for loop_ in loops
+            if getattr(loop_, "status", "") in {"open", "blocked"}
+        ]
 
     if args.stale_only:
         loops = [loop_ for loop_ in loops if _is_stale(loop_)]
@@ -92,7 +113,10 @@ def main():
 
     if args.format == "json":
         # Convert back to dicts for JSON output
-        output = [{k: getattr(loop, k) for k in dir(loop) if not k.startswith("_")} for loop in ranked]
+        output = [
+            {k: getattr(loop, k) for k in dir(loop) if not k.startswith("_")}
+            for loop in ranked
+        ]
         print(json.dumps(output, indent=2, default=str))
     else:
         print(format_table(ranked, args.show_scores))

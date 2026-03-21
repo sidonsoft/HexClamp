@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 BASE = Path(__file__).resolve().parents[1]
@@ -65,7 +65,9 @@ def write_json(path: Path, data: Any) -> None:
     """Atomic JSON write: write to temp file then rename to target."""
     path.parent.mkdir(parents=True, exist_ok=True)
     # Write to a temp file in the same directory (same filesystem for atomic rename)
-    fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), prefix=".tmp_", suffix=".json")
+    fd, tmp_path = tempfile.mkstemp(
+        dir=str(path.parent), prefix=".tmp_", suffix=".json"
+    )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(json.dumps(data, indent=2) + "\n")
@@ -91,7 +93,7 @@ def append_json_array(path: Path, item: Any) -> list[Any]:
     path.parent.mkdir(parents=True, exist_ok=True)
     # read_json + append + write_json (atomic rename) is sufficient
     # since write_json uses temp file + os.replace (atomic on POSIX)
-    data = read_json(path, default=[])
+    data = cast(list[Any], read_json(path, default=[]))
     data.append(item)
     write_json(path, data)
     return data

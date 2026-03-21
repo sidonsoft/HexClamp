@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from pathlib import Path
 
@@ -22,7 +22,15 @@ from executors import (
 WORKSPACE_ROOT = Path.home() / ".openclaw" / "workspace"
 from models import CurrentState, Event, OpenLoop
 from observer import observe_chat_message
-from store import RUNS_DIR, STATE_DIR, append_json_array, bootstrap_runtime_state, ensure_dirs, read_json, write_json
+from store import (
+    RUNS_DIR,
+    STATE_DIR,
+    append_json_array,
+    bootstrap_runtime_state,
+    ensure_dirs,
+    read_json,
+    write_json,
+)
 
 MAX_CONSECUTIVE_ERRORS = 3
 _circuit_open = False
@@ -55,8 +63,8 @@ def _parse_datetime(dt_str: str) -> datetime:
     """Parse ISO datetime string, raising on failure instead of silently falling back."""
     if not dt_str:
         raise ValueError("Empty datetime string")
-    if dt_str.endswith('Z'):
-        dt_str = dt_str[:-1] + '+00:00'
+    if dt_str.endswith("Z"):
+        dt_str = dt_str[:-1] + "+00:00"
     try:
         return datetime.fromisoformat(dt_str)
     except ValueError:
@@ -102,7 +110,7 @@ def _is_loop_stale(loop: OpenLoop) -> bool:
         return True
     now = datetime.now(timezone.utc)
     hours_since = (now - updated).total_seconds() / 3600
-    return hours_since > STALE_THRESHOLD_HOURS
+    return bool(hours_since > STALE_THRESHOLD_HOURS)
 
 
 def load_current_state() -> CurrentState:
@@ -144,7 +152,9 @@ def queue_event(text: str, priority: str = "normal") -> Event:
     return event
 
 
-def _replace_or_append_loop(open_loops: List[OpenLoop], updated: OpenLoop) -> List[OpenLoop]:
+def _replace_or_append_loop(
+    open_loops: List[OpenLoop], updated: OpenLoop
+) -> List[OpenLoop]:
     replaced = False
     next_loops: List[OpenLoop] = []
     for loop in open_loops:
@@ -159,7 +169,7 @@ def _replace_or_append_loop(open_loops: List[OpenLoop], updated: OpenLoop) -> Li
 
 
 def _active_loop_candidates(open_loops: List[OpenLoop]) -> List[OpenLoop]:
-    return rank_open_loops(open_loops)
+    return cast(List[OpenLoop], rank_open_loops(open_loops))
 
 
 def _execute_event_action(action, event: Event):
@@ -170,7 +180,9 @@ def _execute_event_action(action, event: Event):
     if action.executor == "messaging":
         return execute_message_for_event(action, event)
     if action.executor == "system":
-        raise ValueError("system executor is disabled (enabled: false in policies.yaml)")
+        raise ValueError(
+            "system executor is disabled (enabled: false in policies.yaml)"
+        )
     return execute_research_for_event(action, event)
 
 
@@ -182,7 +194,9 @@ def _execute_loop_action(action, loop: OpenLoop):
     if action.executor == "messaging":
         return execute_message_for_loop(action, loop)
     if action.executor == "system":
-        raise ValueError("system executor is disabled (enabled: false in policies.yaml)")
+        raise ValueError(
+            "system executor is disabled (enabled: false in policies.yaml)"
+        )
     return execute_research_for_loop(action, loop)
 
 
@@ -191,7 +205,7 @@ def process_once() -> Dict[str, Any]:
 
     # Circuit breaker: return early if open
     if _circuit_open:
-        payload = {
+        payload: Dict[str, Any] = {
             "processed_event": None,
             "processed_loop": None,
             "state": None,
@@ -199,7 +213,11 @@ def process_once() -> Dict[str, Any]:
             "result": None,
             "error": "CIRCUIT BREAKER TRIPPED — loop halted",
         }
-        write_json(RUNS_DIR / f"run-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json", payload)
+        write_json(
+            RUNS_DIR
+            / f"run-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json",
+            payload,
+        )
         write_json(RUNS_DIR / "last_run.json", payload)
         return payload
 
@@ -224,7 +242,9 @@ def process_once() -> Dict[str, Any]:
             if queued_events:
                 # Keep event in queue until after successful execution AND verification
                 event_to_process = queued_events[0]
-                summary, evidence, artifacts, loop = _execute_event_action(action, event_to_process)
+                summary, evidence, artifacts, loop = _execute_event_action(
+                    action, event_to_process
+                )
                 open_loops = _replace_or_append_loop(open_loops, loop)
                 result = verify_result(action, summary, evidence, artifacts)
                 # Only remove from queue after successful execution and verification
@@ -239,7 +259,9 @@ def process_once() -> Dict[str, Any]:
                     # Use most urgent loop (index 0), matching plan_next_actions() which
                     # selects ranked_loops[0] (most urgent) via _action_for_loop()
                     processed_loop = candidates[0]
-                    summary, evidence, artifacts, updated_loop = _execute_loop_action(action, processed_loop)
+                    summary, evidence, artifacts, updated_loop = _execute_loop_action(
+                        action, processed_loop
+                    )
                     open_loops = _replace_or_append_loop(open_loops, updated_loop)
                     result = verify_result(action, summary, evidence, artifacts)
 

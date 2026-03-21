@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List
+from typing import List, cast
 from uuid import uuid4
 
 from loop import _parse_datetime
@@ -12,9 +12,9 @@ from validate import validate_payload
 PRIORITY_ORDER = ["critical", "high", "normal", "low"]
 STATUS_ORDER = ["open", "blocked"]  # open comes first
 EXECUTOR_WEIGHTS = {
-    "code": 3,      # Code tasks often block other work
-    "browser": 2,   # Browser tasks may have dependencies
-    "messaging": 2, # Messaging has external impact
+    "code": 3,  # Code tasks often block other work
+    "browser": 2,  # Browser tasks may have dependencies
+    "messaging": 2,  # Messaging has external impact
     "research": 1,  # Research is lower priority
 }
 STALE_THRESHOLD_HOURS = 24  # Consider loops stale after 24 hours without update
@@ -27,7 +27,8 @@ def _calculate_loop_age(loop: OpenLoop) -> float:
     except ValueError:
         return 0.0  # Treat as brand new on parse error
     now = datetime.now(timezone.utc)
-    return (now - created).total_seconds() / 3600
+    hours_since = (now - created).total_seconds() / 3600
+    return cast(float, hours_since)
 
 
 def _calculate_time_since_update(loop: OpenLoop) -> float:
@@ -37,7 +38,8 @@ def _calculate_time_since_update(loop: OpenLoop) -> float:
     except ValueError:
         return float(STALE_THRESHOLD_HOURS) + 1  # Treat as stale on parse error
     now = datetime.now(timezone.utc)
-    return (now - updated).total_seconds() / 3600
+    hours_since = (now - updated).total_seconds() / 3600
+    return cast(float, hours_since)
 
 
 def _is_stale(loop: OpenLoop) -> bool:
@@ -49,7 +51,7 @@ def _calculate_escalation_score(loop: OpenLoop) -> int:
     """Calculate escalation score based on evidence count and age."""
     evidence_count = len(loop.evidence)
     age_hours = _calculate_loop_age(loop)
-    
+
     # More evidence + older age = higher escalation
     # Cap at 100 to prevent extreme values
     return min(int(evidence_count * 10 + age_hours / 2), 100)
@@ -59,7 +61,7 @@ def _calculate_urgency_score(loop: OpenLoop) -> tuple[int, int, int, int, int, i
     """
     Calculate comprehensive urgency score for ranking.
     Returns a tuple that can be used for sorting (lower = higher priority).
-    
+
     Ranking factors (in order of importance):
     1. Priority (critical > high > normal > low)
     2. Status (open > blocked)
@@ -74,31 +76,31 @@ def _calculate_urgency_score(loop: OpenLoop) -> tuple[int, int, int, int, int, i
         priority_score = PRIORITY_ORDER.index(loop.priority)
     except ValueError:
         priority_score = 1  # default to normal
-    
+
     # Status score (0-1, lower is better)
     try:
         status_score = STATUS_ORDER.index(loop.status)
     except ValueError:
         status_score = 1  # blocked
-    
+
     # Executor weight (inverted, higher weight = lower score)
     executor_weight = EXECUTOR_WEIGHTS.get(loop.owner, 1)
     executor_score = 4 - executor_weight  # invert so 3 -> 0, 1 -> 3
-    
+
     # Blocker count (direct)
     blocker_count = len(loop.blocked_by)
-    
+
     # Evidence score (inverted, more evidence = lower score = higher priority)
     # Cap at 10 to prevent extreme values
     evidence_score = -min(len(loop.evidence), 10)
-    
+
     # Age score (slight boost for older loops)
     age_hours = _calculate_loop_age(loop)
     age_score = -min(int(age_hours / 24), 5)  # -1 per day, cap at -5
-    
+
     # Staleness score (stale loops get priority boost)
     stale_score = -5 if _is_stale(loop) else 0
-    
+
     return (
         priority_score,
         status_score,
@@ -112,12 +114,12 @@ def _calculate_urgency_score(loop: OpenLoop) -> tuple[int, int, int, int, int, i
 def rank_open_loops(open_loops: List[OpenLoop]) -> List[OpenLoop]:
     """
     Rank open loops by urgency and priority.
-    
+
     Returns loops sorted by urgency (most urgent first).
     """
     # Filter to only actionable loops
     actionable = [loop for loop in open_loops if loop.status in STATUS_ORDER]
-    
+
     # Sort by urgency score (lower tuple = higher priority)
     return sorted(actionable, key=_calculate_urgency_score)
 
@@ -126,7 +128,7 @@ def get_loop_summary(loop: OpenLoop) -> dict:
     """Generate a summary of loop state for debugging/reporting."""
     age_hours = _calculate_loop_age(loop)
     since_update = _calculate_time_since_update(loop)
-    
+
     return {
         "id": loop.id,
         "title": loop.title[:50] + "..." if len(loop.title) > 50 else loop.title,
@@ -140,11 +142,20 @@ def get_loop_summary(loop: OpenLoop) -> dict:
         "evidence_count": len(loop.evidence),
         "escalation_score": _calculate_escalation_score(loop),
         "urgency_score": _calculate_urgency_score(loop),
-        "next_step": loop.next_step[:60] + "..." if len(loop.next_step) > 60 else loop.next_step,
+        "next_step": (
+            loop.next_step[:60] + "..." if len(loop.next_step) > 60 else loop.next_step
+        ),
     }
 
 
-def _build_action(action_type: str, goal: str, inputs: list[str], executor: str, success_criteria: str, risk: str = "low") -> Action:
+def _build_action(
+    action_type: str,
+    goal: str,
+    inputs: list[str],
+    executor: str,
+    success_criteria: str,
+    risk: str = "low",
+) -> Action:
     action = Action(
         id=f"act-{uuid4()}",
         type=action_type,
@@ -161,55 +172,115 @@ def _build_action(action_type: str, goal: str, inputs: list[str], executor: str,
 
 def classify_text(text: str) -> str:
     normalized = text.lower()
-    
+
     # System/admin control messages (highest priority — check first)
     system_patterns = [
-        "reload", "restart", "reset", "shutdown", "kill", "abort",
-        "pause loop", "halt", "emergency", "circuit breaker",
-        "bootstrap", "init", "reinitialize", "flush", "clear cache",
-        "set mode", "set state", "update config", "change policy",
+        "reload",
+        "restart",
+        "reset",
+        "shutdown",
+        "kill",
+        "abort",
+        "pause loop",
+        "halt",
+        "emergency",
+        "circuit breaker",
+        "bootstrap",
+        "init",
+        "reinitialize",
+        "flush",
+        "clear cache",
+        "set mode",
+        "set state",
+        "update config",
+        "change policy",
     ]
     if any(token in normalized for token in system_patterns):
         return "system"
 
     # Specific filename / extension patterns (very strong code signal)
     # Check for .py extension or specific file references
-    if ".py" in text or any(ext in text for ext in [".yaml", ".json", ".sh", ".md"]) and any(
-       kw in normalized for kw in ["edit", "modify", "fix", "create", "update", "add", "remove", "refactor", "implement"]
+    if (
+        ".py" in text
+        or any(ext in text for ext in [".yaml", ".json", ".sh", ".md"])
+        and any(
+            kw in normalized
+            for kw in [
+                "edit",
+                "modify",
+                "fix",
+                "create",
+                "update",
+                "add",
+                "remove",
+                "refactor",
+                "implement",
+            ]
+        )
     ):
         return "code"
-    
+
     # Longer/specific code patterns first (most specific → least specific)
     code_specific = [
-        "create function", "create a function", "define function", "write a function",
-        "implement", "write code", "fix bug", "bug fix", "refactor",
-        "create class", "define class", "write script", "python script",
-        "add to", "modify", "update file", "edit file",
+        "create function",
+        "create a function",
+        "define function",
+        "write a function",
+        "implement",
+        "write code",
+        "fix bug",
+        "bug fix",
+        "refactor",
+        "create class",
+        "define class",
+        "write script",
+        "python script",
+        "add to",
+        "modify",
+        "update file",
+        "edit file",
     ]
     if any(phrase in normalized for phrase in code_specific):
         return "code"
-    
+
     # Shorter code keywords (only if no other category matched)
     code_keywords = ["def ", "class ", "import ", "from ", "async ", "await "]
     if any(token in normalized for token in code_keywords):
         return "code"
-    
+
     # Browser patterns
     browser_patterns = [
-        "browser", "click", "page", "site", "login", "navigate",
-        "web", "url", "screenshot", "scroll", "hover", "submit form",
+        "browser",
+        "click",
+        "page",
+        "site",
+        "login",
+        "navigate",
+        "web",
+        "url",
+        "screenshot",
+        "scroll",
+        "hover",
+        "submit form",
     ]
     if any(token in normalized for token in browser_patterns):
         return "browser"
-    
+
     # Messaging patterns
     messaging_patterns = [
-        "send message", "send a message", "reply to", "telegram message",
-        "email user", "send email", "notify", "slack", "discord message",
+        "send message",
+        "send a message",
+        "reply to",
+        "telegram message",
+        "email user",
+        "send email",
+        "notify",
+        "slack",
+        "discord message",
     ]
     if any(token in normalized for token in messaging_patterns):
         return "message"
-        
+
     return "research"
 
 
@@ -254,7 +325,11 @@ def _action_for_event(event: Event) -> Action:
 
 
 def _action_for_loop(loop: OpenLoop) -> Action:
-    action_type = loop.owner if loop.owner in {"research", "code", "browser", "messaging"} else classify_text(loop.title)
+    action_type = (
+        loop.owner
+        if loop.owner in {"research", "code", "browser", "messaging"}
+        else classify_text(loop.title)
+    )
 
     if action_type == "code":
         return _build_action(
@@ -292,7 +367,9 @@ def _action_for_loop(loop: OpenLoop) -> Action:
     )
 
 
-def plan_next_actions(queued_events: List[Event], open_loops: List[OpenLoop]) -> List[Action]:
+def plan_next_actions(
+    queued_events: List[Event], open_loops: List[OpenLoop]
+) -> List[Action]:
     if queued_events:
         return [_action_for_event(queued_events[0])]
 

@@ -9,6 +9,10 @@ BASE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE / "agents"))
 
 import executors
+import executors.base
+import executors.browser
+import executors.messaging
+import executors.code_executor
 import loop
 import store
 
@@ -42,8 +46,7 @@ class IntegrationTests(unittest.TestCase):
         browser_dir = runs_dir / "browser_tasks"
 
         runtime_json_defaults = {
-            state_dir
-            / "current_state.json": {
+            state_dir / "current_state.json": {
                 "goal": "Keep hexclamp coherent and progressing",
                 "active_context": [],
                 "recent_events": [],
@@ -68,15 +71,15 @@ class IntegrationTests(unittest.TestCase):
             "store_RUNTIME_TEXT_DEFAULTS": patch.object(
                 store, "RUNTIME_TEXT_DEFAULTS", runtime_text_defaults
             ),
-            "executors_BASE": patch.object(executors, "BASE", base),
+            "executors_BASE": patch.object(executors.base, "BASE", base),
             "executors_MESSAGING_TASKS_DIR": patch.object(
-                executors, "MESSAGING_TASKS_DIR", messaging_dir
+                executors.messaging, "MESSAGING_TASKS_DIR", messaging_dir
             ),
             "executors_CODE_TASKS_DIR": patch.object(
-                executors, "CODE_TASKS_DIR", code_dir
+                executors.code_executor, "CODE_TASKS_DIR", code_dir
             ),
             "executors_BROWSER_TASKS_DIR": patch.object(
-                executors, "BROWSER_TASKS_DIR", browser_dir
+                executors.browser, "BROWSER_TASKS_DIR", browser_dir
             ),
             "loop_STATE_DIR": patch.object(loop, "STATE_DIR", state_dir),
             "loop_RUNS_DIR": patch.object(loop, "RUNS_DIR", runs_dir),
@@ -215,7 +218,8 @@ class IntegrationTests(unittest.TestCase):
                     (state_dir / "event_queue.json").read_text(encoding="utf-8")
                 )
                 self.assertEqual(
-                    len(queue_after), 0,
+                    len(queue_after),
+                    0,
                     "Event should be dequeued after successful execution+verification",
                 )
 
@@ -269,8 +273,8 @@ class IntegrationTests(unittest.TestCase):
                 self.assertIn(loops[0]["id"], current_state["open_loops"])
                 self.assertEqual(current_state["recent_events"], [])
 
-                recent_changes = (
-                    (state_dir / "recent_changes.md").read_text(encoding="utf-8")
+                recent_changes = (state_dir / "recent_changes.md").read_text(
+                    encoding="utf-8"
                 )
                 self.assertIn("Messaging", recent_changes)
 
@@ -357,9 +361,7 @@ class IntegrationTests(unittest.TestCase):
                 ):
                     payload = loop.process_once()
                     self.assertIsNotNone(payload["processed_event"])
-                    self.assertEqual(
-                        payload["actions"][0]["executor"], "messaging"
-                    )
+                    self.assertEqual(payload["actions"][0]["executor"], "messaging")
 
     def test_circuit_breaker_trips_after_consecutive_failures(self):
         """
