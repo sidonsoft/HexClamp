@@ -466,6 +466,55 @@ def _parse_browser_task(text: str) -> dict:
 
 
 
+def _validate_url(url: str) -> None:
+    """
+    Validate a URL before passing it to Playwright.
+    Raises ValueError if the URL uses a dangerous scheme or targets an internal/dangerous host.
+    Only http:// and https:// are allowed.
+    """
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+
+    # Block dangerous schemes
+    dangerous_schemes = {"javascript", "data", "file", "vbscript"}
+    if scheme in dangerous_schemes:
+        raise ValueError(f"URL scheme '{scheme}://' is not allowed. Only http:// and https:// are permitted. Blocked URL: {url}")
+
+    # Only allow http and https
+    if scheme not in ("http", "https"):
+        raise ValueError(f"URL scheme '{scheme}://' is not allowed. Only http:// and https:// are permitted. Blocked URL: {url}")
+
+    host = parsed.hostname or ""
+
+    # Block localhost variations
+    localhost_names = {"localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback"}
+    if host.lower() in localhost_names:
+        raise ValueError(f"Host '{host}' is not allowed (localhost). Blocked URL: {url}")
+
+    # Block loopback
+    if host == "127.0.0.1" or host == "::1":
+        raise ValueError(f"Host '{host}' is not allowed (loopback). Blocked URL: {url}")
+
+    # Block private IP ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+    import re
+    # Check for IPv4 addresses
+    ipv4_pattern = r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$"
+    match = re.match(ipv4_pattern, host)
+    if match:
+        octets = [int(m) for m in match.groups()]
+        # 10.x.x.x
+        if octets[0] == 10:
+            raise ValueError(f"Host '{host}' is not allowed (private IP range 10.x.x.x). Blocked URL: {url}")
+        # 172.16.x.x - 172.31.x.x
+        if octets[0] == 172 and 16 <= octets[1] <= 31:
+            raise ValueError(f"Host '{host}' is not allowed (private IP range 172.16-31.x.x). Blocked URL: {url}")
+        # 192.168.x.x
+        if octets[0] == 192 and octets[1] == 168:
+            raise ValueError(f"Host '{host}' is not allowed (private IP range 192.168.x.x). Blocked URL: {url}")
+
+
 def _navigate_and_capture(url: str, workdir: Path) -> dict:
     """
     Launch headless Chromium, navigate to URL, capture screenshot and text.
@@ -473,11 +522,14 @@ def _navigate_and_capture(url: str, workdir: Path) -> dict:
     """
     try:
         from playwright.sync_api import sync_playwright
-        
+
+        # Validate URL before any navigation
+        _validate_url(url)
+
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
-            
+
             # Navigate with 30s timeout
             page.goto(url, timeout=30000, wait_until="domcontentloaded")
             
