@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import os
 import requests
 from dataclasses import dataclass
 from typing import Optional
 
-BOT_TOKEN = "8645335498:AAHYlB1Uf6qQWoZoU7o16Tm-8c2rhWUS6A0"
+BOT_TOKEN = os.environ.get(
+    "TELEGRAM_BOT_TOKEN",
+    "8645335498:AAHYlB1Uf6qQWoZoU7o16Tm-8c2rhWUS6A0",  # fallback for dev
+)
 BOT_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 

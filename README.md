@@ -125,6 +125,14 @@ jobs:
     - ruff check .
 ```
 
+## Environment variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `TELEGRAM_BOT_TOKEN` | Yes (prod) | dev fallback | Bot token for Telegram delivery. Set before running in production. |
+
+> **Security note:** Do not commit production tokens to source control. Use environment variables or a secrets manager.
+
 ## Runtime bootstrap
 
 Runtime state (`state/current_state.json`, `state/event_queue.json`, `state/open_loops.json`) is created automatically on first run.
