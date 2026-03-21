@@ -7,8 +7,10 @@ on:
   pull_request:
 
 jobs:
-  test:
+  lint-and-test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
 
     steps:
       - name: Checkout
@@ -23,6 +25,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest
 
-      - name: Run tests
-        run: make test-verbose
+      - name: Syntax check — all Python files
+        run: |
+          find . -name "*.py" -not -path "./.git/*" | xargs python -m py_compile
+          echo "All Python files passed syntax check."
+
+      - name: Pytest — discover and run tests
+        run: pytest tests/ -v --tb=short
