@@ -350,5 +350,115 @@ class TestExecuteBrowserForLoop(unittest.TestCase):
                 self.assertEqual(exec_data["status"], "failed")
 
 
+class TestURLValidation(unittest.TestCase):
+    """Test URL validation blocks dangerous schemes and internal hosts."""
+
+    def test_blocks_javascript_scheme(self):
+        """javascript: URLs must be rejected."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("javascript:alert('xss')")
+        self.assertIn("javascript", str(ctx.exception).lower())
+        self.assertIn("not allowed", str(ctx.exception))
+
+    def test_blocks_data_scheme(self):
+        """data: URLs must be rejected."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("data:text/html,<script>alert('xss')</script>")
+        self.assertIn("data", str(ctx.exception).lower())
+        self.assertIn("not allowed", str(ctx.exception))
+
+    def test_blocks_file_scheme(self):
+        """file:// URLs must be rejected."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("file:///etc/passwd")
+        self.assertIn("file", str(ctx.exception).lower())
+        self.assertIn("not allowed", str(ctx.exception))
+
+    def test_blocks_vbscript_scheme(self):
+        """vbscript: URLs must be rejected."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("vbscript:MsgBox('xss')")
+        self.assertIn("vbscript", str(ctx.exception).lower())
+        self.assertIn("not allowed", str(ctx.exception))
+
+    def test_blocks_localhost(self):
+        """localhost must be rejected."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("http://localhost:8080/admin")
+        self.assertIn("localhost", str(ctx.exception).lower())
+
+    def test_blocks_127_0_0_1(self):
+        """127.0.0.1 must be rejected."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("http://127.0.0.1:8080/admin")
+        self.assertIn("127.0.0.1", str(ctx.exception))
+
+    def test_blocks_10_x_x_x(self):
+        """10.x.x.x private range must be rejected."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("http://10.0.0.5:8080/admin")
+        self.assertIn("10.", str(ctx.exception).lower())
+        self.assertIn("private", str(ctx.exception).lower())
+
+    def test_blocks_192_168_x_x(self):
+        """192.168.x.x private range must be rejected."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("http://192.168.1.100/admin")
+        self.assertIn("192.168.", str(ctx.exception).lower())
+        self.assertIn("private", str(ctx.exception).lower())
+
+    def test_blocks_172_16_31_x_x(self):
+        """172.16-31.x.x private range must be rejected."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("http://172.20.50.100/admin")
+        self.assertIn("172.", str(ctx.exception).lower())
+        self.assertIn("private", str(ctx.exception).lower())
+
+    def test_allows_https_url(self):
+        """Valid https:// URLs must pass validation."""
+        executors._validate_url("https://example.com")
+        executors._validate_url("https://www.google.com/search?q=test")
+
+    def test_allows_http_url(self):
+        """Valid http:// URLs must pass validation."""
+        executors._validate_url("http://example.com")
+
+    def test_validate_url_error_includes_blocked_url(self):
+        """ValueError message must include the blocked URL for auditability."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("javascript:alert('xss')")
+        self.assertIn("javascript:alert", str(ctx.exception))
+
+
+class TestNavigateAndCaptureRejectsDangerousURLs(unittest.TestCase):
+    """_navigate_and_capture must return success=False for dangerous URLs."""
+
+    def test_dangerous_url_returns_failure(self):
+        """javascript: URL must produce a failure result, not crash."""
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            result = executors._navigate_and_capture("javascript:alert(1)", workdir)
+            self.assertFalse(result["success"])
+            self.assertIn("error", result)
+            self.assertIsNone(result["screenshot_path"])
+            self.assertIsNone(result["content_path"])
+
+    def test_localhost_url_returns_failure(self):
+        """localhost URL must produce a failure result, not crash."""
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            result = executors._navigate_and_capture("http://localhost:8080/admin", workdir)
+            self.assertFalse(result["success"])
+            self.assertIn("error", result)
+
+    def test_private_ip_url_returns_failure(self):
+        """Private IP URL must produce a failure result, not crash."""
+        with tempfile.TemporaryDirectory() as tmp:
+            workdir = Path(tmp)
+            result = executors._navigate_and_capture("http://192.168.1.100/admin", workdir)
+            self.assertFalse(result["success"])
+            self.assertIn("error", result)
+
+
 if __name__ == "__main__":
     unittest.main()
