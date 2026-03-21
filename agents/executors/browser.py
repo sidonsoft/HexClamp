@@ -136,9 +136,7 @@ def _validate_url(url: str) -> None:
         return
 
     if addr.is_loopback:
-        raise ValueError(
-            f"Host '{host}' is not allowed (loopback). Blocked URL: {url}"
-        )
+        raise ValueError(f"Host '{host}' is not allowed (loopback). Blocked URL: {url}")
     if addr.is_private:
         raise ValueError(
             f"Host '{host}' is not allowed (private/reserved IP range). Blocked URL: {url}"
@@ -151,9 +149,7 @@ def _validate_url(url: str) -> None:
                 f"Host '{host}' maps to private/loopback IPv4 '{mapped_v4}'. Blocked URL: {url}"
             )
     # Also block any address where the compressed form starts with ::ffff:
-    if isinstance(addr, ipaddress.IPv6Address) and host.lower().startswith(
-        "::ffff:"
-    ):
+    if isinstance(addr, ipaddress.IPv6Address) and host.lower().startswith("::ffff:"):
         raise ValueError(
             f"Host '{host}' is not allowed (IPv4-mapped address). Blocked URL: {url}"
         )

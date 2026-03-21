@@ -13,7 +13,9 @@ class TestTelegramDeliveryAgent(unittest.TestCase):
     """Tests for TelegramDeliveryAgent."""
 
     def setUp(self):
-        self.env_patcher = patch.dict("os.environ", {"TELEGRAM_BOT_TOKEN": "fakeproto:faketoken"})
+        self.env_patcher = patch.dict(
+            "os.environ", {"TELEGRAM_BOT_TOKEN": "fakeproto:faketoken"}
+        )
         self.env_patcher.start()
 
     def tearDown(self):

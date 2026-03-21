@@ -5,6 +5,7 @@ import requests
 from dataclasses import dataclass
 from typing import Any, Optional, cast
 
+
 def get_bot_token() -> str:
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
