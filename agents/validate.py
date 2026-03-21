@@ -10,13 +10,22 @@ from referencing import Registry, Resource
 from store import SCHEMAS_DIR
 
 
+# Module-level cache for schema registry (loaded once, reused across calls)
+_registry_cache: Registry | None = None
+
+
 def _build_registry() -> Registry:
+    """Build the schema registry once and cache it."""
+    global _registry_cache
+    if _registry_cache is not None:
+        return _registry_cache
     resources: dict[str, Resource[Any]] = {}
     for path in SCHEMAS_DIR.glob("*.json"):
         contents = json.loads(path.read_text(encoding="utf-8"))
         uri = path.resolve().as_uri()
         resources[uri] = Resource.from_contents(contents)
-    return Registry().with_resources(resources.items())
+    _registry_cache = Registry().with_resources(resources.items())
+    return _registry_cache
 
 
 def load_schema(name: str) -> tuple[dict[str, Any], Registry]:

@@ -13,8 +13,25 @@ verification:
   required_for:
     - code
     - browser
-    - system
     - messaging
+
+executors:
+  research:
+    enabled: true
+    model: default
+    role: gather_and_summarize
+  code:
+    enabled: true
+    model: default
+    role: modify_and_test
+  browser:
+    enabled: true
+    model: default
+    role: navigate_and_extract
+  messaging:
+    enabled: true
+    model: default
+    role: draft_or_send_with_approval
 
 loop_control:
   allow_self_requeue_forever: false

@@ -8,6 +8,7 @@ import yaml
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
+from urllib.parse import quote_plus
 
 from models import Action, Event, OpenLoop
 from store import BASE, append_markdown, write_json
@@ -190,7 +191,8 @@ def _spawn_coding_agent(task: str, workdir: Path, agent_id: str = "codex") -> di
             subprocess.run(["git", "config", "user.name", "Hydra Claw"], cwd=str(workdir), capture_output=True)
         
         # Get initial git status to detect changes later
-        status_before = subprocess.run(
+        # (comparison happens in _quality_gate_changed_files via py_compile)
+        subprocess.run(
             ["git", "status", "--porcelain"],
             cwd=str(workdir),
             capture_output=True,
@@ -300,19 +302,39 @@ def execute_research_for_event(action: Action, event: Event) -> tuple[str, list[
 def execute_code_for_event(action: Action, event: Event, workspace_root: Path | None = None) -> tuple[str, list[str], list[str], OpenLoop]:
     text = event.payload.get("text", "")
     
-    # Determine workspace
+    # Determine workspace - where the agent should actually make changes
     if workspace_root is None:
         workspace_root = BASE.parent.parent / "workspace"
     
-    # Create a dedicated work directory for this task
-    workdir = CODE_TASKS_DIR / action.id
-    workdir.mkdir(parents=True, exist_ok=True)
+    # Create metadata directory for task artifacts (separate from agent workdir)
+    task_meta_dir = CODE_TASKS_DIR / action.id
+    task_meta_dir.mkdir(parents=True, exist_ok=True)
     
-    # Create task artifacts first
+    # Create task artifacts (metadata only - not the agent's workdir)
     code_artifacts = _write_code_task_artifacts(action, text[:80] or f"Code task {event.id}", text, "event")
     
-    # Spawn real coding agent
-    agent_result = _spawn_coding_agent(text, workdir)
+    # Issue #11: Check policy for code approval requirement before spawning agent
+    policies = _load_policies()
+    if policies.get("code", {}).get("require_approval", False):
+        # Approval required - do not auto-execute code agent
+        loop = OpenLoop(
+            id=f"loop-{event.id}",
+            title=text[:80] or f"Code follow up {event.id}",
+            status="blocked",
+            priority=event.priority,
+            owner="code",
+            created_at=event.timestamp,
+            updated_at=datetime.now(timezone.utc).isoformat(),
+            next_step="Awaiting explicit approval before executing code agent",
+            blocked_by=["approval required"],
+            evidence=[event.id, action.id, *code_artifacts],
+        )
+        summary = f"Code task requires approval: {text[:60]}..."
+        return summary, [event.id, action.id], code_artifacts, loop
+    
+    # Spawn real coding agent in the actual workspace, not scratch dir
+    # CODE_TASKS_DIR is only for metadata/briefs, not agent working directory
+    agent_result = _spawn_coding_agent(text, workspace_root)
     
     # Quality gate: run py_compile on changed .py files
     py_evidence, py_failures = _quality_gate_changed_files(
@@ -340,8 +362,8 @@ def execute_code_for_event(action: Action, event: Event, workspace_root: Path | 
     
     # Determine status based on agent results + quality gate
     if agent_result.get("fallback"):
-        # No agent available - create stub instead
-        stub_file = workdir / "generated.py"
+        # No agent available - create stub in metadata directory
+        stub_file = task_meta_dir / "generated.py"
         stub_content = f"# Auto-generated stub (no agent available)\n# Task: {text[:80]}...\n\n"
         if "function" in text.lower():
             stub_content += "def generated_function():\n    pass\n"
@@ -372,10 +394,8 @@ def execute_code_for_event(action: Action, event: Event, workspace_root: Path | 
     policies = _load_policies()
     required_for = policies.get("verification", {}).get("required_for", [])
     has_py_compile_evidence = any("py_compile:" in e for e in evidence)
-    result_status = "success"
     follow_ups = []
     if "code" in required_for and not has_py_compile_evidence:
-        result_status = "partial"
         follow_ups.append("Quality gate: verification.required_for includes 'code' but no py_compile evidence found")
         evidence.append("quality_gate:partial:no_py_compile_evidence")
     
@@ -479,7 +499,7 @@ def execute_browser_for_event(action: Action, event: Event) -> tuple[str, list[s
     if task["urls"]:
         target_url = task["urls"][0]
     elif task["search_terms"]:
-        target_url = f"https://www.google.com/search?q={task['search_terms'].replace(' ', '+')}"
+        target_url = f"https://www.google.com/search?q={quote_plus(task['search_terms'])}"
     
     if target_url:
         # Write execution record
@@ -624,6 +644,11 @@ def execute_message_for_event(action: Action, event: Event) -> tuple[str, list[s
     brief_content = f"# Messaging Task\n\n- action_id: {action.id}\n- event_id: {event.id}\n- status: pending\n\n## Task\n\n{text}\n\n## Parsed\n\n- channel: {task['channel']}\n- recipient: {task['recipient']}\n- requires_approval: {task['requires_approval']}\n\n## Content\n\n{task['content']}\n\n## Execution Required\n\n- [ ] Verify recipient exists\n- [ ] Get approval (if required)\n- [ ] Send message\n- [ ] Capture delivery confirmation\n"
     brief_path.write_text(brief_content, encoding="utf-8")
     
+    # Issue #13: Enforce external_send.require_approval policy - policy overrides keyword heuristics
+    policies = _load_policies()
+    if policies.get("external_send", {}).get("require_approval", False):
+        task["requires_approval"] = True
+    
     # Determine if we can execute
     if task["requires_approval"]:
         loop_status = "blocked"
@@ -709,11 +734,21 @@ def execute_code_for_loop(action: Action, loop: OpenLoop, workspace_root: Path |
     if workspace_root is None:
         workspace_root = BASE.parent.parent / "workspace"
     
-    workdir = CODE_TASKS_DIR / action.id
-    workdir.mkdir(parents=True, exist_ok=True)
+    # Issue #11: Check policy for code approval requirement before spawning agent
+    policies = _load_policies()
+    if policies.get("code", {}).get("require_approval", False):
+        # Approval required - do not auto-execute code agent
+        loop.status = "blocked"
+        loop.next_step = "Awaiting explicit approval before executing code agent"
+        loop.blocked_by = loop.blocked_by + ["approval required"]
+        loop.updated_at = datetime.now(timezone.utc).isoformat()
+        code_artifacts = _write_code_task_artifacts(action, loop.title, loop.title, "loop")
+        summary = f"Code loop requires approval: {loop.title[:60]}..."
+        return summary, loop.evidence, code_artifacts, loop
     
-    # Spawn real coding agent
-    agent_result = _spawn_coding_agent(loop.title, workdir)
+    # Spawn real coding agent in the actual workspace, not scratch dir
+    # CODE_TASKS_DIR is only for metadata/briefs, not agent working directory
+    agent_result = _spawn_coding_agent(loop.title, workspace_root)
     
     # Quality gate: run py_compile on changed .py files
     py_evidence, py_failures = _quality_gate_changed_files(
@@ -808,7 +843,7 @@ def execute_browser_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
     if task["urls"]:
         target_url = task["urls"][0]
     elif task["search_terms"]:
-        target_url = f"https://www.google.com/search?q={task['search_terms'].replace(' ', '+')}"
+        target_url = f"https://www.google.com/search?q={quote_plus(task['search_terms'])}"
     
     loop.updated_at = datetime.now(timezone.utc).isoformat()
     
@@ -865,6 +900,11 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     write_json(task_file, task_record)
+    
+    # Issue #13: Enforce external_send.require_approval policy - policy overrides keyword heuristics
+    policies = _load_policies()
+    if policies.get("external_send", {}).get("require_approval", False):
+        task["requires_approval"] = True
     
     # Determine if we can execute
     if task["requires_approval"]:

@@ -56,19 +56,26 @@ def prune_old_loops(open_loops: List[OpenLoop]) -> List[OpenLoop]:
 
 def _is_loop_stale(loop: OpenLoop) -> bool:
     """Check if loop is stale based on time since creation."""
-    updated = _parse_datetime(loop.updated_at)
+    try:
+        updated = _parse_datetime(loop.updated_at)
+    except ValueError:
+        # Invalid timestamp = treat as stale so it gets pruned
+        return True
     now = datetime.now(timezone.utc)
     hours_since = (now - updated).total_seconds() / 3600
     return hours_since > STALE_THRESHOLD_HOURS
 
 
 def _parse_datetime(dt_str: str) -> datetime:
+    """Parse ISO datetime string, raising on failure instead of silently falling back."""
+    if not dt_str:
+        raise ValueError("Empty datetime string")
     if dt_str.endswith('Z'):
         dt_str = dt_str[:-1] + '+00:00'
     try:
         return datetime.fromisoformat(dt_str)
     except ValueError:
-        return datetime.now(timezone.utc)
+        raise ValueError(f"Invalid datetime string: {dt_str!r}")
 
 
 def load_current_state() -> CurrentState:
@@ -135,6 +142,8 @@ def _execute_event_action(action, event: Event):
         return execute_browser_for_event(action, event)
     if action.executor == "messaging":
         return execute_message_for_event(action, event)
+    if action.executor == "system":
+        raise ValueError("system executor is disabled (enabled: false in policies.yaml)")
     return execute_research_for_event(action, event)
 
 
@@ -145,6 +154,8 @@ def _execute_loop_action(action, loop: OpenLoop):
         return execute_browser_for_loop(action, loop)
     if action.executor == "messaging":
         return execute_message_for_loop(action, loop)
+    if action.executor == "system":
+        raise ValueError("system executor is disabled (enabled: false in policies.yaml)")
     return execute_research_for_loop(action, loop)
 
 
@@ -184,14 +195,23 @@ def process_once() -> Dict[str, Any]:
 
         try:
             if queued_events:
-                processed_event = queued_events.pop(0)
-                summary, evidence, artifacts, loop = _execute_event_action(action, processed_event)
+                # Keep event in queue until after successful execution AND verification
+                event_to_process = queued_events[0]
+                summary, evidence, artifacts, loop = _execute_event_action(action, event_to_process)
                 open_loops = _replace_or_append_loop(open_loops, loop)
                 result = verify_result(action, summary, evidence, artifacts)
+                # Only remove from queue after successful execution and verification
+                if result and result.verified:
+                    processed_event = queued_events.pop(0)
+                else:
+                    # Leave event in queue but mark it - verification failed or partial
+                    processed_event = event_to_process
             else:
                 candidates = _active_loop_candidates(open_loops)
                 if candidates:
-                    processed_loop = candidates[-1]
+                    # Use most urgent loop (index 0), matching plan_next_actions() which
+                    # selects ranked_loops[0] (most urgent) via _action_for_loop()
+                    processed_loop = candidates[0]
                     summary, evidence, artifacts, updated_loop = _execute_loop_action(action, processed_loop)
                     open_loops = _replace_or_append_loop(open_loops, updated_loop)
                     result = verify_result(action, summary, evidence, artifacts)

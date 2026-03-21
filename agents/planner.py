@@ -21,24 +21,32 @@ STALE_THRESHOLD_HOURS = 24  # Consider loops stale after 24 hours without update
 
 def _parse_datetime(dt_str: str) -> datetime:
     """Parse ISO datetime string, handling various formats."""
+    if not dt_str:
+        raise ValueError("Empty datetime string")
     if dt_str.endswith('Z'):
         dt_str = dt_str[:-1] + '+00:00'
     try:
         return datetime.fromisoformat(dt_str)
     except ValueError:
-        return datetime.now(timezone.utc)
+        raise ValueError(f"Invalid datetime string: {dt_str!r}")
 
 
 def _calculate_loop_age(loop: OpenLoop) -> float:
-    """Calculate loop age in hours since creation."""
-    created = _parse_datetime(loop.created_at)
+    """Calculate loop age in hours since creation. Returns 0 on parse error."""
+    try:
+        created = _parse_datetime(loop.created_at)
+    except ValueError:
+        return 0.0  # Treat as brand new on parse error
     now = datetime.now(timezone.utc)
     return (now - created).total_seconds() / 3600
 
 
 def _calculate_time_since_update(loop: OpenLoop) -> float:
-    """Calculate hours since last update."""
-    updated = _parse_datetime(loop.updated_at)
+    """Calculate hours since last update. Returns STALE_THRESHOLD_HOURS+1 on parse error."""
+    try:
+        updated = _parse_datetime(loop.updated_at)
+    except ValueError:
+        return float(STALE_THRESHOLD_HOURS) + 1  # Treat as stale on parse error
     now = datetime.now(timezone.utc)
     return (now - updated).total_seconds() / 3600
 

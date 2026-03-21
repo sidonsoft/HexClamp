@@ -39,6 +39,31 @@ def _evidence_file_exists(item: str) -> bool:
     if any(item.startswith(prefix) for prefix in skip_prefixes):
         return True  # These are metadata, count as valid evidence
     
+    # Issue #10: Task metadata files (pending execution records) don't count as completion evidence
+    # Skip browser/messaging task files - they indicate queued work, not completed work
+    task_meta_prefixes = ("runs/browser_tasks/", "runs/messaging_tasks/", "runs/code_tasks/")
+    if any(item.startswith(prefix) for prefix in task_meta_prefixes):
+        # These are task metadata directories - check if it's a completion record
+        # Only count it as evidence if it shows actual completion (not just "pending")
+        path = Path(item)
+        if not path.is_absolute():
+            from store import BASE
+            path = BASE / path
+        if path.exists() and path.suffix == ".json":
+            try:
+                import json
+                data = json.loads(path.read_text(encoding="utf-8"))
+                status = data.get("status", "")
+                # Only count as evidence if status indicates actual completion
+                completion_statuses = ("completed", "success", "sent", "delivered", "verified")
+                if any(s in status.lower() for s in completion_statuses):
+                    return True
+                # Pending/queued status does NOT count as valid completion evidence
+                return False
+            except (json.JSONDecodeError, OSError):
+                return False
+        return False
+    
     path = Path(item)
     if path.is_absolute() and path.exists():
         return True

@@ -1,27 +1,24 @@
 # hydra-claw-loop
 
-A practical scaffold for an inspectable agent loop.
+A practical scaffold for an inspectable autonomous agent loop.
 
 ## Goal
 
 Build a system that stays coherent over time by separating:
-- observation
-- condensation
-- planning
-- execution
-- verification
-- persistence
-
-The first version should optimize for:
-- inspectability
-- recoverability
-- low token burn
-- narrow contracts
-- state that survives bad runs
+- **observation** — normalize raw inputs into events
+- **condensation** — compress events + state into working context
+- **planning** — rank open loops and select next actions
+- **execution** — run tasks through specialized executors
+- **verification** — validate claimed results before accepting them
+- **persistence** — file-backed state that survives restarts
 
 ## Core loop
 
-Observe -> Condense -> Decide -> Act -> Verify -> Persist
+```
+Observe → Condense → Plan → Execute → Verify → Persist
+```
+
+Each cycle loads current state, generates actions from ranked open loops, executes one action, verifies the result, and persists the updated state. The loop is fully file-backed — no invisible prompt state.
 
 ## Design principles
 
@@ -32,51 +29,100 @@ Observe -> Condense -> Decide -> Act -> Verify -> Persist
 5. File-backed state beats invisible prompt state.
 6. Persistent briefs and open loops prevent rediscovery.
 
-## Initial build order
+## Architecture
 
-1. Directory scaffold
-2. JSON schemas
-3. File IO helpers
-4. Schema validation
-5. Observer
-6. Condenser
-7. Planner
-8. One executor
-9. Verifier
-10. Main loop runner
+```
+agents/
+  loop.py       # Main cycle: load → condense → plan → execute → verify → persist
+  models.py     # Dataclasses: Event, Action, OpenLoop, Result, CurrentState
+  observer.py   # Normalize raw inputs into Events
+  condenser.py  # Compress events + loops into CurrentState
+  planner.py    # Rank open loops, classify inputs, select next actions
+  verifier.py   # Validate claimed results against evidence
+  executors.py  # Task executors: research, code, browser, messaging
+  store.py      # Atomic JSON file I/O
+  validate.py   # JSON Schema validation with caching
 
-## Current vertical slices
+config/
+  policies.yaml   # Verification gates, loop control, executor config
+  agents.yaml     # Model routing per agent
+  loops.yaml      # Loop priority and ownership
 
-- Research: grounded summaries into `state/recent_changes.md`
-- Code: creates task brief artifacts in `runs/code_tasks/`
+schemas/
+  event.schema.json
+  action.schema.json
+  loop.schema.json
+  result.schema.json
+  state.schema.json
 
-## Suggested next executor
-
-After code, add browser execution with real visible-state evidence.
-
-## Top-level structure
-
-```text
-hydra-claw-loop/
-  README.md
-  config/
-  state/
-  memory/
-  schemas/
-  prompts/
-  agents/
-  runs/
+prompts/
+  observer.md     # Role prompt for the observer
+  condenser.md    # Role prompt for the condenser
+  planner.md      # Role prompt for the planner
+  verifier.md     # Role prompt for the verifier
+  executors/      # Per-executor role prompts
 ```
 
-## Current status
+## Executor status
 
-This repository contains the scaffold, starter schemas, prompt contracts, Python loop implementation, and executor/task tooling.
+| Executor   | Status | Notes |
+|------------|--------|-------|
+| research   | ✅ Active | Grounded summaries → `state/recent_changes.md` |
+| code       | ✅ Active | Coding agent tasks → `runs/code_tasks/` (see known issues) |
+| browser    | 🔧 Active | Stub — navigates, extracts (see known issues) |
+| messaging  | 🔧 Active | Draft/send with approval gate (see known issues) |
+| system     | ⚠️ Gap   | Declared in schema and classifier, not yet implemented |
 
-Generated runtime files (`runs/`, live `state/*.json`, `state/recent_changes.md`) are intentionally excluded from source control.
+## Known issues
+
+Code review findings are being addressed in `fix/code-review-findings`:
+
+- **#6** — planner selects most-urgent loop but executor runs least-urgent (`process_once` / `plan_next_actions` mismatch)
+- **#7** — code executor operates in scratch dir, not target workspace
+- **#8** — events dropped on executor/verification failure (no requeue)
+- **#9** — non-atomic JSON writes (`append_json_array` race condition)
+- **#10** — verification false positives (pending task files counted as evidence)
+- **#11** — prompt injection risk (untrusted chat input → autonomous coding agents)
+- **#12** — `system` classified but no executor branch exists
+- **#13** — `enabled` policy flags not enforced in code; `require_approval` not checked for code actions
+- **#14** — `_parse_datetime` falls back to "now" on bad timestamps, masking staleness
+- **#15** — schema validation rebuilds registry from disk on every call
+- **#16** — browser search URL uses space-replace only, breaks on `&?#`
+
+## Testing
+
+```bash
+make test
+# or
+python3 -m unittest discover -s tests -v
+```
+
+**Automated test coverage:**
+- `test_message_parser.py` — message normalization regression tests
+- `test_planner.py` — loop ranking and urgency scoring tests
+- `test_task_completion.py` — task artifact verification tests
+- `test_bootstrap.py` — runtime bootstrap tests
+- `test_integration.py` — end-to-end enqueue → plan → task artifact integration test
+
+## CI
+
+GitHub Actions runs syntax checks and the full test suite on every push to `main` and on all pull requests.
+
+```yaml
+# .github/workflows/ci.yml
+on: [push, pull_request]
+jobs:
+  test:
+    - python setup + requirements
+    - syntax check: python -m py_compile on all .py files
+    - pytest tests/ -v --tb=short
+  lint:
+    - ruff check .
+```
 
 ## Runtime bootstrap
 
-Missing runtime state is recreated automatically when the loop runs.
+Runtime state (`state/current_state.json`, `state/event_queue.json`, `state/open_loops.json`) is created automatically on first run.
 
 Manual bootstrap:
 
@@ -86,34 +132,27 @@ python3 agents/loop.py init
 python3 scripts/bootstrap_runtime.py
 ```
 
-This recreates:
-- `state/current_state.json`
-- `state/event_queue.json`
-- `state/open_loops.json`
-- `state/recent_changes.md`
+Generated runtime files (`runs/`, `state/current_state.json`, `state/event_queue.json`, `state/open_loops.json`, `state/recent_changes.md`) are excluded from source control — see `.gitignore`.
 
-## Testing
-
-Run the full test suite:
+## Running the loop
 
 ```bash
-make test
-# or
-python3 -m unittest discover -s tests -v
+# Initialize / enqueue a task
+python3 agents/loop.py enqueue "investigate the auth bug"
+python3 agents/loop.py enqueue "review PR #42"
+
+# Run one cycle
+python3 agents/loop.py
+
+# Interactive repl
+python3 agents/loop.py repl
 ```
 
-Current automated coverage includes:
-- message parser regression tests
-- planner ranking tests
-- task completion verification tests
-- runtime bootstrap tests
-- one end-to-end enqueue → plan → task artifact integration test
+## Adding a new executor
 
-## CI
-
-GitHub Actions runs the test suite automatically on:
-- pushes to `main`
-- pull requests
-
-Workflow file:
-- `.github/workflows/ci.yml`
+1. Add the executor function to `agents/executors.py` (e.g., `execute_<name>_for_loop`)
+2. Add the action type to `schemas/action.schema.json` enum
+3. Add a role prompt in `prompts/executors/<name>.md`
+4. Add `verification.required_for` entry in `config/policies.yaml` if the executor requires evidence
+5. Add tests in `tests/`
+6. Update this README's executor status table
