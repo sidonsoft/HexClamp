@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import yaml
 from pathlib import Path
 from typing import List
 
@@ -19,7 +20,6 @@ def _load_policies() -> dict:
     """Load policies.yaml to check required_for."""
     policies_path = Path(__file__).parent.parent / "config" / "policies.yaml"
     if policies_path.exists():
-        import yaml
         with open(policies_path, "r") as f:
             return yaml.safe_load(f) or {}
     return {}

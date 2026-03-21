@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List, Tuple
+from typing import List
 from uuid import uuid4
 
 from models import Action, Event, OpenLoop
@@ -58,7 +58,7 @@ def _calculate_escalation_score(loop: OpenLoop) -> int:
     return min(int(evidence_count * 10 + age_hours / 2), 100)
 
 
-def _calculate_urgency_score(loop: OpenLoop) -> Tuple[int, int, int, int, int, int]:
+def _calculate_urgency_score(loop: OpenLoop) -> tuple[int, int, int, int, int, int]:
     """
     Calculate comprehensive urgency score for ranking.
     Returns a tuple that can be used for sorting (lower = higher priority).

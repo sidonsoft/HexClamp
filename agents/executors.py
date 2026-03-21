@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+import yaml
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -14,6 +15,7 @@ from store import BASE, append_markdown, write_json
 
 STALE_EVIDENCE_THRESHOLD = 3
 CODE_TASKS_DIR = BASE / "runs" / "code_tasks"
+_policies_cache: dict | None = None
 
 
 def _write_change(action: Action, summary: str) -> str:
@@ -74,13 +76,17 @@ def _write_code_task_artifacts(action: Action, title: str, source_text: str, mod
 
 
 def _load_policies() -> dict:
-    """Load policies.yaml if present."""
+    """Load policies.yaml if present, cached for the lifetime of the process."""
+    global _policies_cache
+    if _policies_cache is not None:
+        return _policies_cache
     policies_path = BASE / "config" / "policies.yaml"
     if policies_path.exists():
-        import yaml
         with open(policies_path, "r") as f:
-            return yaml.safe_load(f) or {}
-    return {}
+            _policies_cache = yaml.safe_load(f) or {}
+    else:
+        _policies_cache = {}
+    return _policies_cache
 
 
 def _quality_gate_changed_files(changed_files: list[str], workspace_root: Path) -> tuple[list[str], list[str]]:
