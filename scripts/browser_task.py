@@ -14,6 +14,7 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Dict
 
 
 def extract_urls(text: str) -> list[str]:
@@ -37,7 +38,6 @@ def main():
 
     task_path = Path(args.task_file)
     result_path = Path(args.result_file)
-
     if not task_path.exists():
         error_result = {"success": False, "error": f"Task file not found: {task_path}"}
         result_path.write_text(json.dumps(error_result, indent=2), encoding="utf-8")
@@ -47,11 +47,10 @@ def main():
     text = task.get("text", "")
     action_id = task.get("action_id", "unknown")
 
-    # Extract URLs
     urls = extract_urls(text)
 
     evidence: list[str] = []
-    result: dict[str, object] = {
+    task_result: Dict[str, Any] = {
         "success": True,
         "action_id": action_id,
         "task_text": text,
@@ -65,11 +64,11 @@ def main():
     }
 
     if urls:
-        result["primary_url"] = urls[0]
+        task_result["primary_url"] = urls[0]
         evidence.append(f"url_extracted:{urls[0]}")
 
     # Write result for OpenClaw to pick up and execute via browser tool
-    result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    result_path.write_text(json.dumps(task_result, indent=2), encoding="utf-8")
     print(f"Browser task prepared: {result_path}")
     return 0
 

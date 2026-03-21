@@ -494,6 +494,20 @@ class TestURLValidation(unittest.TestCase):
         self.assertIn("172.", str(ctx.exception).lower())
         self.assertIn("private", str(ctx.exception).lower())
 
+    def test_blocks_private_ipv6(self):
+        """Unique-local IPv6 addresses must be rejected."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("http://[fd00::1]/admin")
+        self.assertIn("fd00::1", str(ctx.exception).lower())
+        self.assertIn("private", str(ctx.exception).lower())
+
+    def test_blocks_linklocal_ipv6(self):
+        """Link-local IPv6 addresses must be rejected."""
+        with self.assertRaises(ValueError) as ctx:
+            executors._validate_url("http://[fe80::1]/admin")
+        self.assertIn("fe80::1", str(ctx.exception).lower())
+        self.assertIn("private", str(ctx.exception).lower())
+
     def test_allows_https_url(self):
         """Valid https:// URLs must pass validation."""
         executors._validate_url("https://example.com")

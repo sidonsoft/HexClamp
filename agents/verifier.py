@@ -77,18 +77,26 @@ def _evidence_file_exists(item: str) -> bool:
         return False
 
     path = Path(item)
-    if path.is_absolute() and path.exists():
-        return True
+    if path.is_absolute():
+        return False
+
+    def _exists_within(base: Path) -> bool:
+        candidate = (base / path).resolve()
+        try:
+            candidate.relative_to(base.resolve())
+        except ValueError:
+            return False
+        return candidate.exists()
 
     # Try workspace-relative
     workspace = Path.home() / ".openclaw" / "workspace"
-    if (workspace / item).exists():
+    if _exists_within(workspace):
         return True
 
     # Try BASE-relative
     from store import BASE
 
-    if (BASE / item).exists():
+    if _exists_within(BASE):
         return True
 
     return False

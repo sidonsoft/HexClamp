@@ -12,6 +12,15 @@ from agents.delivery import TelegramDeliveryAgent, DeliveryResult
 class TestTelegramDeliveryAgent(unittest.TestCase):
     """Tests for TelegramDeliveryAgent."""
 
+    def setUp(self):
+        self.env_patcher = patch.dict(
+            "os.environ", {"TELEGRAM_BOT_TOKEN": "fakeproto:faketoken"}
+        )
+        self.env_patcher.start()
+
+    def tearDown(self):
+        self.env_patcher.stop()
+
     def test_send_success_returns_message_id(self):
         """Test that a successful send returns the message_id."""
         mock_response = MagicMock()

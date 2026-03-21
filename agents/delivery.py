@@ -5,11 +5,16 @@ import requests
 from dataclasses import dataclass
 from typing import Any, Optional, cast
 
-BOT_TOKEN = os.environ.get(
-    "TELEGRAM_BOT_TOKEN",
-    "8645335498:AAHYlB1Uf6qQWoZoU7o16Tm-8c2rhWUS6A0",  # fallback for dev
-)
-BOT_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+def get_bot_token() -> str:
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN environment variable is not set")
+    return token
+
+
+def get_bot_api() -> str:
+    return f"https://api.telegram.org/bot{get_bot_token()}"
 
 
 @dataclass
@@ -56,7 +61,7 @@ class TelegramDeliveryAgent:
         """Resolve a Telegram username (@xxx) to a numeric chat_id via getChat API."""
         try:
             response = requests.get(
-                f"{BOT_API}/getChat",
+                f"{get_bot_api()}/getChat",
                 params={"chat_id": username},
                 timeout=10,
             )
@@ -76,7 +81,7 @@ class TelegramDeliveryAgent:
         """Send message via sendMessage API."""
         try:
             response = requests.post(
-                f"{BOT_API}/sendMessage",
+                f"{get_bot_api()}/sendMessage",
                 json={
                     "chat_id": chat_id,
                     "text": content,
