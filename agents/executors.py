@@ -642,10 +642,12 @@ def execute_browser_for_event(action: Action, event: Event) -> tuple[str, list[s
             summary = f"Browser task completed: navigated to {target_url} and captured evidence"
             loop_status = "resolved"
             next_step = "Browser task executed successfully"
+            blocked_by = []
         else:
             summary = f"Browser task failed: {browser_result['error']}"
             loop_status = "blocked"
             next_step = f"Browser failed: {browser_result['error'][:80]}"
+            blocked_by = ["browser-navigation-failed"]
     else:
         summary = f"Browser task created but no URL found in: {text[:60]}..."
         exec_record["status"] = "failed"
@@ -653,6 +655,7 @@ def execute_browser_for_event(action: Action, event: Event) -> tuple[str, list[s
         write_json(exec_path, exec_record)
         loop_status = "blocked"
         next_step = "No URL found in task - requires clarification"
+        blocked_by = ["no-url-found"]
     
     artifact = _write_change(action, summary)
     artifacts.append(artifact)
@@ -666,7 +669,7 @@ def execute_browser_for_event(action: Action, event: Event) -> tuple[str, list[s
         created_at=event.timestamp,
         updated_at=datetime.now(timezone.utc).isoformat(),
         next_step=next_step,
-        blocked_by=["no-url-found"] if loop_status == "blocked" else [],
+        blocked_by=blocked_by,
         evidence=evidence,
     )
     
@@ -1010,14 +1013,17 @@ def execute_browser_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
         if browser_result["success"]:
             loop.status = "resolved"
             loop.next_step = "Browser task executed successfully"
+            loop.blocked_by = []
             summary = f"Browser loop '{loop.title}' completed: navigated to {target_url}"
         else:
             loop.status = "blocked"
             loop.next_step = f"Browser failed: {browser_result['error'][:80]}"
+            loop.blocked_by = ["browser-navigation-failed"]
             summary = f"Browser loop '{loop.title}' failed: {browser_result['error']}"
     else:
         loop.status = "blocked"
         loop.next_step = "No URL found - requires clarification"
+        loop.blocked_by = ["no-url-found"]
         summary = f"Browser loop '{loop.title}' blocked: no URL found"
         exec_record["status"] = "failed"
         exec_record["error"] = "No URL found in task"
