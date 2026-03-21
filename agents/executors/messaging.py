@@ -12,6 +12,7 @@ from . import base
 from agents.delivery import TelegramDeliveryAgent
 from .base import (
     _load_policies,
+    _initial_loop_state,
     _write_change,
 )
 
@@ -67,7 +68,7 @@ def _parse_message_task(text: str) -> dict:
             content = re.sub(prefix, '', content, flags=re.IGNORECASE)
     content = content.strip()
     
-    # Check for approval keywords
+    # Check for approval keywords - default to requiring approval unless urgent/immediate
     requires_approval = not any(word in text_lower for word in ["urgent", "immediate", "now", "auto-send"])
     
     return {
@@ -83,12 +84,15 @@ def execute_message_for_event(action: Action, event: Event) -> tuple[str, list[s
     """Execute messaging task for an event."""
     text = event.payload.get("text", "")
     
+    # Create messaging task directory
     MESSAGING_TASKS_DIR.mkdir(parents=True, exist_ok=True)
     workdir = MESSAGING_TASKS_DIR / action.id
     workdir.mkdir(parents=True, exist_ok=True)
     
+    # Parse the task
     task = _parse_message_task(text)
     
+    # Create task file for OpenClaw to execute
     task_file = workdir / "task.json"
     task_record = {
         "action_id": action.id,
@@ -101,15 +105,34 @@ def execute_message_for_event(action: Action, event: Event) -> tuple[str, list[s
     }
     write_json(task_file, task_record)
     
+    # Create brief
     brief_path = workdir / "brief.md"
-    brief_content = f"# Messaging Task\n\n- action_id: {action.id}\n- event_id: {event.id}\n- status: pending\n\n## Task\n\n{text}\n\n## Parsed\n\n- channel: {task.get('channel')}\n- recipient: {task.get('recipient')}\n- content: {task.get('content', '')[:100]}\n"
+    brief_content = f"""# Messaging Task
+
+- action_id: {action.id}
+- event_id: {event.id}
+- status: pending
+
+## Task
+
+{text}
+
+## Parsed
+
+- channel: {task.get('channel')}
+- recipient: {task.get('recipient')}
+- content: {task.get('content', '')[:100]}
+
+## Next Steps
+
+1. Review parsed task details
+2. If channel and recipient are valid, proceed with delivery
+3. If missing info, ask user for clarification
+"""
     brief_path.write_text(brief_content)
     
-    summary = f"Created messaging task: {task.get('channel') or 'unknown channel'} to {task.get('recipient') or 'unknown recipient'}"
-    artifacts = [str(task_file.relative_to(base.BASE)), str(brief_path.relative_to(base.BASE))]
-    
-    from .base import _initial_loop_state
     loop_status, next_step, blocked_by, loop_summary = _initial_loop_state(event, "messaging")
+    
     loop = OpenLoop(
         id=f"loop-{event.id}",
         title=event.payload.get("text", "")[:80] or f"Message task {event.id}",
@@ -123,20 +146,29 @@ def execute_message_for_event(action: Action, event: Event) -> tuple[str, list[s
         evidence=[event.id],
     )
     
-    artifact = _write_change(action, summary)
-    artifacts.insert(0, artifact)
+    # Add task file to evidence and artifacts
+    artifact = _write_change(action, f"Created messaging task: {task['original_text'][:80]}")
+    artifacts = [
+        artifact,
+        str(task_file.relative_to(base.BASE)),
+        str(brief_path.relative_to(base.BASE)),
+    ]
+    evidence = [event.id, str(task_file), str(brief_path)]
     
-    return summary, [event.id], artifacts, loop
+    return loop_summary, evidence, artifacts, loop
 
 
 def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[str], list[str], OpenLoop]:
-    """Execute messaging task for an open loop."""
+    """Execute messaging task for a loop."""
+    # For message loops, create task files for OpenClaw execution
     MESSAGING_TASKS_DIR.mkdir(parents=True, exist_ok=True)
     workdir = MESSAGING_TASKS_DIR / action.id
     workdir.mkdir(parents=True, exist_ok=True)
     
+    # Parse the task from loop title
     task = _parse_message_task(loop.title)
     
+    # Create task file
     task_file = workdir / "task.json"
     task_record = {
         "action_id": action.id,
@@ -149,10 +181,12 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
     }
     write_json(task_file, task_record)
     
+    # Issue #13: Enforce external_send.require_approval policy - policy overrides keyword heuristics
     policies = _load_policies()
     if policies.get("external_send", {}).get("require_approval", False):
         task["requires_approval"] = True
     
+    # Determine if we can execute
     if task["requires_approval"]:
         loop_status = "blocked"
         blocked_by = ["approval required"]
@@ -164,9 +198,11 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
         next_step = f"Send {task['channel']} message to {task['recipient']}"
         summary = f"Messaging loop '{loop.title}' ready: {task['channel']} to {task['recipient']}"
     
+    # Sentinel approval check for blocked loops
     if loop_status == "blocked":
         sentinel_path = base.BASE / "runs" / "messaging_tasks" / action.id / "approved"
         if sentinel_path.exists():
+            # Sentinel file found — clear blocked status and proceed
             loop_status = "open"
             blocked_by = []
             loop.blocked_by = []
@@ -175,10 +211,12 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
             summary = f"Messaging loop '{loop.title}' approved via sentinel: {task['channel']} to {task['recipient']}"
             sentinel_path.unlink()
     
+    # Telegram delivery: send if channel is telegram and not blocked
     if task["channel"] == "telegram" and loop_status != "blocked" and task.get("recipient"):
         delivery_agent = TelegramDeliveryAgent()
         result = delivery_agent.send(recipient=task["recipient"], content=task["content"])
         
+        # Update execution record with delivery result
         exec_record = {
             "action_id": action.id,
             "loop_id": loop.id,
@@ -211,6 +249,7 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
             next_step = f"Telegram delivery failed: {result.error}"
             summary = f"Telegram delivery failed to {task['recipient']}: {result.error}"
     else:
+        # Write execution record (no delivery attempted)
         exec_record = {
             "action_id": action.id,
             "loop_id": loop.id,

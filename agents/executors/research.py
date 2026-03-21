@@ -32,7 +32,7 @@ def execute_research_for_event(action: Action, event: Event) -> tuple[str, list[
 
 
 def execute_research_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[str], list[str], OpenLoop]:
-    """Execute research task for an open loop."""
+    """Execute research task for a loop."""
     now = datetime.now(timezone.utc).isoformat()
 
     if loop.status == "blocked":
