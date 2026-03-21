@@ -7,10 +7,11 @@ from datetime import datetime, timezone
 from urllib.parse import quote_plus, urlparse
 
 from models import Action, Event, OpenLoop
-from store import BASE, write_json
+from store import write_json
+from . import base
 from .base import _write_change
 
-BROWSER_TASKS_DIR = BASE / "runs" / "browser_tasks"
+BROWSER_TASKS_DIR = base.BASE / "runs" / "browser_tasks"
 
 
 def _extract_urls(text: str) -> list[str]:
@@ -225,9 +226,9 @@ def execute_browser_for_event(action: Action, event: Event) -> tuple[str, list[s
     # Execute browser navigation if we have a URL
     evidence = [event.id, action.id]
     artifacts = [
-        str(task_file.relative_to(BASE)),
-        str(brief_path.relative_to(BASE)),
-        str(exec_path.relative_to(BASE)),
+        str(task_file.relative_to(base.BASE)),
+        str(brief_path.relative_to(base.BASE)),
+        str(exec_path.relative_to(base.BASE)),
     ]
     
     if target_url:
@@ -242,8 +243,8 @@ def execute_browser_for_event(action: Action, event: Event) -> tuple[str, list[s
             exec_record["screenshot_path"] = browser_result["screenshot_path"]
             exec_record["content_path"] = browser_result["content_path"]
             evidence.extend([
-                str((workdir / "screenshot.png").relative_to(BASE)),
-                str((workdir / "content.txt").relative_to(BASE)),
+                str((workdir / "screenshot.png").relative_to(base.BASE)),
+                str((workdir / "content.txt").relative_to(base.BASE)),
             ])
         else:
             exec_record["error"] = browser_result["error"]
@@ -333,8 +334,8 @@ def execute_browser_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
     loop.updated_at = datetime.now(timezone.utc).isoformat()
     evidence = [loop.id, action.id]
     artifacts = [
-        str(task_file.relative_to(BASE)),
-        str(exec_path.relative_to(BASE)),
+        str(task_file.relative_to(base.BASE)),
+        str(exec_path.relative_to(base.BASE)),
     ]
     
     if target_url:
@@ -349,8 +350,8 @@ def execute_browser_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
             exec_record["screenshot_path"] = browser_result["screenshot_path"]
             exec_record["content_path"] = browser_result["content_path"]
             evidence.extend([
-                str((workdir / "screenshot.png").relative_to(BASE)),
-                str((workdir / "content.txt").relative_to(BASE)),
+                str((workdir / "screenshot.png").relative_to(base.BASE)),
+                str((workdir / "content.txt").relative_to(base.BASE)),
             ])
         else:
             exec_record["error"] = browser_result["error"]

@@ -7,14 +7,17 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 from models import Action, Event, OpenLoop
-from store import BASE, append_markdown, write_json
+from store import append_markdown, write_json
+import store
+
+BASE = store.BASE  # Re-export for patching
 
 STALE_EVIDENCE_THRESHOLD = 3
 _policies_cache: dict | None = None
 
 
 def _write_change(action: Action, summary: str) -> str:
-    artifact = BASE / "state" / "recent_changes.md"
+    artifact = store.BASE / "state" / "recent_changes.md"
     append_markdown(artifact, f"- {action.id}: {summary}\n")
     return str(Path("state/recent_changes.md"))
 
@@ -35,7 +38,7 @@ def _load_policies() -> dict:
     global _policies_cache
     if _policies_cache is not None:
         return _policies_cache
-    policies_path = BASE / "config" / "policies.yaml"
+    policies_path = store.BASE / "config" / "policies.yaml"
     if policies_path.exists():
         with open(policies_path, "r") as f:
             _policies_cache = yaml.safe_load(f) or {}

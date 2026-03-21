@@ -7,14 +7,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from models import Action, Event, OpenLoop
-from store import BASE, write_json
+from store import write_json
+from . import base
 from agents.delivery import TelegramDeliveryAgent
 from .base import (
     _load_policies,
     _write_change,
 )
 
-MESSAGING_TASKS_DIR = BASE / "runs" / "messaging_tasks"
+MESSAGING_TASKS_DIR = base.BASE / "runs" / "messaging_tasks"
 
 
 def _parse_message_task(text: str) -> dict:
@@ -36,34 +37,45 @@ def _parse_message_task(text: str) -> dict:
     
     # Determine target user/recipient
     recipient = None
+    # Patterns: "to @username", "to user", "send to @username"
+    # Try to match @username first, then plain username
     at_match = re.search(r'to\s+(@[\w\-]+)', text_lower)
     if at_match:
         recipient = at_match.group(1)
     else:
+        # Fallback: match word after "to " but avoid "to" itself
         match = re.search(r'to\s+([\w\-]+)', text_lower)
-        if match:
+        if match and match.group(1) not in ['to', 'send', 'message']:
             recipient = match.group(1)
     
-    # Extract content
-    content = None
-    content_match = re.search(r'content:\s*(.+)$', text, re.IGNORECASE | re.DOTALL)
-    if content_match:
-        content = content_match.group(1).strip()
+    # Extract message content (after common prefixes)
+    content = text
+    # Handle "to @user: message" format
+    colon_match = re.search(r'to\s+@?[\w\-]+:\s*(.+)$', text, re.IGNORECASE)
+    if colon_match:
+        content = colon_match.group(1).strip()
     else:
-        remaining = text
-        if channel:
-            remaining = re.sub(rf'\b{channel}\b', '', remaining, flags=re.IGNORECASE)
-        if recipient:
-            remaining = remaining.replace(recipient, '')
-        remaining = re.sub(r'^[\s,:\-]+|[\s,:\-]+$', '', remaining)
-        if remaining and len(remaining) > 3:
-            content = remaining
+        # Remove common prefixes
+        prefixes = [
+            r'^send\s+(?:a\s+)?message\s+(?:to\s+)?@?[\w\-]+:?\s*',
+            r'^message\s+(?:to\s+)?@?[\w\-]+:?\s*',
+            r'^telegram\s+',
+            r'^email\s+',
+            r'^notify\s+',
+        ]
+        for prefix in prefixes:
+            content = re.sub(prefix, '', content, flags=re.IGNORECASE)
+    content = content.strip()
+    
+    # Check for approval keywords
+    requires_approval = not any(word in text_lower for word in ["urgent", "immediate", "now", "auto-send"])
     
     return {
         "channel": channel,
         "recipient": recipient,
         "content": content,
-        "requires_approval": False,
+        "original_text": text,
+        "requires_approval": requires_approval,
     }
 
 
@@ -94,7 +106,7 @@ def execute_message_for_event(action: Action, event: Event) -> tuple[str, list[s
     brief_path.write_text(brief_content)
     
     summary = f"Created messaging task: {task.get('channel') or 'unknown channel'} to {task.get('recipient') or 'unknown recipient'}"
-    artifacts = [str(task_file.relative_to(BASE)), str(brief_path.relative_to(BASE))]
+    artifacts = [str(task_file.relative_to(base.BASE)), str(brief_path.relative_to(base.BASE))]
     
     from .base import _initial_loop_state
     loop_status, next_step, blocked_by, loop_summary = _initial_loop_state(event, "messaging")
@@ -153,7 +165,7 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
         summary = f"Messaging loop '{loop.title}' ready: {task['channel']} to {task['recipient']}"
     
     if loop_status == "blocked":
-        sentinel_path = BASE / "runs" / "messaging_tasks" / action.id / "approved"
+        sentinel_path = base.BASE / "runs" / "messaging_tasks" / action.id / "approved"
         if sentinel_path.exists():
             loop_status = "open"
             blocked_by = []
@@ -215,7 +227,7 @@ def execute_message_for_loop(action: Action, loop: OpenLoop) -> tuple[str, list[
         write_json(exec_path, exec_record)
     
     evidence = [loop.id, action.id, str(task_file), str(exec_path)]
-    artifacts = [str(task_file.relative_to(BASE)), str(exec_path.relative_to(BASE))]
+    artifacts = [str(task_file.relative_to(base.BASE)), str(exec_path.relative_to(base.BASE))]
     
     loop.updated_at = datetime.now(timezone.utc).isoformat()
     loop.status = loop_status

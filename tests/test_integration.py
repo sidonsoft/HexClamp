@@ -9,6 +9,10 @@ BASE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE / "agents"))
 
 import executors
+import executors.base
+import executors.browser
+import executors.messaging
+import executors.code_executor
 import loop
 import store
 
@@ -68,15 +72,15 @@ class IntegrationTests(unittest.TestCase):
             "store_RUNTIME_TEXT_DEFAULTS": patch.object(
                 store, "RUNTIME_TEXT_DEFAULTS", runtime_text_defaults
             ),
-            "executors_BASE": patch.object(executors, "BASE", base),
+            "executors_BASE": patch.object(executors.base, "BASE", base),
             "executors_MESSAGING_TASKS_DIR": patch.object(
-                executors, "MESSAGING_TASKS_DIR", messaging_dir
+                executors.messaging, "MESSAGING_TASKS_DIR", messaging_dir
             ),
             "executors_CODE_TASKS_DIR": patch.object(
-                executors, "CODE_TASKS_DIR", code_dir
+                executors.code_executor, "CODE_TASKS_DIR", code_dir
             ),
             "executors_BROWSER_TASKS_DIR": patch.object(
-                executors, "BROWSER_TASKS_DIR", browser_dir
+                executors.browser, "BROWSER_TASKS_DIR", browser_dir
             ),
             "loop_STATE_DIR": patch.object(loop, "STATE_DIR", state_dir),
             "loop_RUNS_DIR": patch.object(loop, "RUNS_DIR", runs_dir),

@@ -9,7 +9,8 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 from models import Action, Event, OpenLoop
-from store import BASE, write_json
+from store import write_json
+from . import base
 from .base import (
     _load_policies, 
     _quality_gate_changed_files, 
@@ -17,7 +18,7 @@ from .base import (
     _write_change
 )
 
-CODE_TASKS_DIR = BASE / "runs" / "code_tasks"
+CODE_TASKS_DIR = base.BASE / "runs" / "code_tasks"
 
 
 def _write_code_task_artifacts(action: Action, title: str, source_text: str, mode: str) -> list[str]:
@@ -54,10 +55,10 @@ def _write_code_task_artifacts(action: Action, title: str, source_text: str, mod
         "title": title,
         "source_text": source_text,
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "artifacts": [str(brief_path.relative_to(BASE)), str(record_path.relative_to(BASE))],
+        "artifacts": [str(brief_path.relative_to(base.BASE)), str(record_path.relative_to(base.BASE))],
     }
     write_json(record_path, record)
-    return [str(brief_path.relative_to(BASE)), str(record_path.relative_to(BASE))]
+    return [str(brief_path.relative_to(base.BASE)), str(record_path.relative_to(base.BASE))]
 
 
 def _find_target_files(source_text: str, workspace_root: Path) -> list[Path]:
@@ -199,7 +200,7 @@ def execute_code_for_event(action: Action, event: Event, workspace_root: Path | 
     text = event.payload.get("text", "")
     
     if workspace_root is None:
-        workspace_root = BASE.parent.parent / "workspace"
+        workspace_root = base.BASE.parent.parent / "workspace"
     
     task_meta_dir = CODE_TASKS_DIR / action.id
     task_meta_dir.mkdir(parents=True, exist_ok=True)
@@ -238,7 +239,7 @@ def execute_code_for_event(action: Action, event: Event, workspace_root: Path | 
     
     exec_record_path = CODE_TASKS_DIR / f"{action.id}_execution.json"
     write_json(exec_record_path, execution_record)
-    code_artifacts.append(str(exec_record_path.relative_to(BASE)))
+    code_artifacts.append(str(exec_record_path.relative_to(base.BASE)))
     
     evidence = [event.id, action.id]
     evidence.extend(agent_result.get("evidence", []))
@@ -298,7 +299,7 @@ def execute_code_for_event(action: Action, event: Event, workspace_root: Path | 
 
 def execute_code_for_loop(action: Action, loop: OpenLoop, workspace_root: Path | None = None) -> tuple[str, list[str], list[str], OpenLoop]:
     if workspace_root is None:
-        workspace_root = BASE.parent.parent / "workspace"
+        workspace_root = base.BASE.parent.parent / "workspace"
     
     policies = _load_policies()
     if policies.get("code", {}).get("require_approval", False):
@@ -327,7 +328,7 @@ def execute_code_for_loop(action: Action, loop: OpenLoop, workspace_root: Path |
     
     exec_record_path = CODE_TASKS_DIR / f"{action.id}_execution.json"
     write_json(exec_record_path, execution_record)
-    code_artifacts.append(str(exec_record_path.relative_to(BASE)))
+    code_artifacts.append(str(exec_record_path.relative_to(base.BASE)))
     
     evidence = [loop.id, action.id]
     evidence.extend(agent_result.get("evidence", []))

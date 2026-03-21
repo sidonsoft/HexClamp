@@ -11,6 +11,8 @@ BASE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE / "agents"))
 
 import executors
+import executors.base
+import executors.browser
 import store
 
 
@@ -43,8 +45,8 @@ def _fresh_browser_patches(tmp: Path):
         patch.object(store, "RUNS_DIR", runs_dir),
         patch.object(store, "RUNTIME_JSON_DEFAULTS", runtime_json_defaults),
         patch.object(store, "RUNTIME_TEXT_DEFAULTS", runtime_text_defaults),
-        patch.object(executors, "BASE", base),
-        patch.object(executors, "BROWSER_TASKS_DIR", browser_dir),
+        patch.object(executors.base, "BASE", base),
+        patch.object(executors.browser, "BROWSER_TASKS_DIR", browser_dir),
     ]
     return all_patches, base, state_dir, browser_dir
 
@@ -174,7 +176,7 @@ class TestExecuteBrowserForEvent(unittest.TestCase):
                         Path(result["content_path"]).write_text("Example Domain\nHello, World!", encoding="utf-8")
                         return result
                     
-                    with patch.object(executors, "_navigate_and_capture", side_effect=mock_with_files):
+                    with patch.object(executors.browser, "_navigate_and_capture", side_effect=mock_with_files):
                         action = Action()
                         event = Event(text="navigate to https://example.com and take screenshot")
                         
@@ -280,7 +282,7 @@ class TestExecuteBrowserForLoop(unittest.TestCase):
                     Path(result["content_path"]).write_text("Example Domain content", encoding="utf-8")
                     return result
                 
-                with patch.object(executors, "_navigate_and_capture", side_effect=mock_with_files):
+                with patch.object(executors.browser, "_navigate_and_capture", side_effect=mock_with_files):
                     action = Action()
                     loop = OpenLoop(
                         title="navigate to https://example.com and capture",
