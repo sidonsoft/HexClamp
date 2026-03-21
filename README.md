@@ -70,7 +70,7 @@ prompts/
 | research   | ✅ Active | Grounded summaries → `state/recent_changes.md` |
 | code       | ✅ Active | Coding agent tasks → runs in target workspace |
 | browser    | ✅ Active | Playwright headless Chromium — navigates, screenshots, extracts text |
-| messaging  | 🔧 Stub   | Draft/send with approval gate; awaiting real delivery integration |
+| messaging  | ✅ Active | Telegram Bot API — auto-send or sentinel-approved; handles 403/400/429 |
 | system     | ⚠️ Removed | Removed — no executor branch, reduces attack surface |
 
 ## Code review findings — all resolved
@@ -90,6 +90,7 @@ All 11 findings from the Codex architecture review are fixed and merged:
 | #14 | Invalid datetimes silently fell back to "now" | ✅ Fixed |
 | #15 | Schema registry rebuilt from disk on every call | ✅ Fixed |
 | #16 | Browser URL only encoded spaces | ✅ Fixed (full URL validation: schemes, IPv4/IPv6 private ranges, octet range checks) |
+| #17 | Messaging executor created artifacts but never delivered | ✅ Fixed (Telegram Bot API direct, sentinel approval) |
 
 **Issue #11 note:** Prompt injection risk is mitigated by an opt-in `require_approval` gate in `config/policies.yaml`. Set `policies.code.require_approval: true` to block autonomous code execution when untrusted chat input can reach the loop. The approval gate blocks the external agent from spawning until a human explicitly approves.
 
