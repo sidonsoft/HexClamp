@@ -35,43 +35,63 @@ def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
             "implementation",
         ]
         if any(term in text_lower for term in repo_keywords):
-            for anchor in ["README.md", "pyproject.toml", "CONTRIBUTING.md"]:
+            for anchor in ["README.md", "CONTRIBUTING.md", "pyproject.toml"]:
                 if (BASE / anchor).exists():
                     found_files.append(anchor)
-                    break
 
     if found_files:
-        # Ingest content from the primary identified file
-        primary = found_files[0]
-        path = BASE / primary
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                # Read up to 10 lines for the grounded summary
-                lines = []
-                for _ in range(10):
-                    line = f.readline()
-                    if not line:
-                        break
-                    lines.append(line.strip())
-                content_snippet = " / ".join([l for l in lines if l])
+        best_summary = ""
+        # Check all found files to find the best (most grounded) research result
+        for primary in found_files[:3]:
+            path = BASE / primary
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    # Bounded read for summary snippet
+                    lines = content.splitlines()[:10]
+                    content_snippet = " / ".join([l.strip() for l in lines if l])
 
-            # Heuristic for finding and next action based on common repo tasks
-            finding = f"File exists and initial content identifies as: \"{content_snippet[:100]}...\""
-            if "readme" in primary.lower() or "contributing" in primary.lower():
-                next_action = f"Evaluate Documentation in {primary} against actual implementation state."
-            elif primary.endswith(".py"):
-                next_action = f"Analyze logic or structure in {primary} to address the request."
-            else:
-                next_action = f"Perform deep inspection of {primary} to fulfill research goal."
+                # Improved heuristic for concrete correction proposal
+                stale_instruction = ""
+                correction = ""
+                if "readme" in primary.lower() or "contributing" in primary.lower():
+                    # Specific check for stale 'python3 agents/loop.py' which should be 'python3 -m agents.loop'
+                    stale_pattern = r"python3 agents/loop\.py"
+                    if re.search(stale_pattern, content):
+                        stale_instruction = "python3 agents/loop.py"
+                        correction = "python3 -m agents.loop"
 
-            summary = (
-                f"Grounded research in {primary}:\n"
-                f"- Finding: {finding}\n"
-                f"- Next Action: {next_action}"
-            )
-        except Exception as e:
-            summary = f"Performed grounded research in {primary} but could not read content: {e}"
-        return summary, found_files
+                if stale_instruction:
+                    finding = f"Identified stale instruction: \"{stale_instruction}\""
+                    summary = (
+                        f"Grounded research in {primary}:\n"
+                        f"- Finding: {finding}\n"
+                        f"- Original: {stale_instruction}\n"
+                        f"- Correction: {correction}"
+                    )
+                    # If we found a concrete stale instruction, this is the best result
+                    return summary, found_files
+
+                # Fallback summary if no stale instruction found in this file
+                if not best_summary:
+                    finding = f"File exists and initial content identifies as: \"{content_snippet[:100]}...\""
+                    if "readme" in primary.lower() or "contributing" in primary.lower():
+                        next_action = f"Evaluate Documentation in {primary} against actual implementation state."
+                    elif primary.endswith(".py"):
+                        next_action = f"Analyze logic or structure in {primary} to address the request."
+                    else:
+                        next_action = f"Perform deep inspection of {primary} to fulfill research goal."
+
+                    best_summary = (
+                        f"Grounded research in {primary}:\n"
+                        f"- Finding: {finding}\n"
+                        f"- Next Action: {next_action}"
+                    )
+            except Exception as e:
+                if not best_summary:
+                    best_summary = f"Performed grounded research in {primary} but could not read content: {e}"
+
+        return best_summary, found_files
 
     return "", []
 
