@@ -88,6 +88,9 @@ python3 -m agents.loop enqueue "review PR #42"
 # Run one cycle
 python3 -m agents.loop
 
+# Check system status
+python3 -m agents.loop status
+
 # Run tests
 python3 -m pytest -q
 ```
