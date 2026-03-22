@@ -142,3 +142,22 @@ class TelegramDeliveryAgent:
                 error=f"Request failed: {str(e)}",
                 recipient=original_recipient,
             )
+
+    def get_updates(self, offset: Optional[int] = None) -> list[dict]:
+        """Fetch new updates from Telegram bot."""
+        try:
+            params = {"timeout": 30}
+            if offset is not None:
+                params["offset"] = offset
+
+            response = requests.get(
+                f"{get_bot_api()}/getUpdates",
+                params=params,
+                timeout=35,
+            )
+            data = response.json()
+            if not data.get("ok"):
+                return []
+            return data.get("result", [])
+        except requests.exceptions.RequestException:
+            return []
