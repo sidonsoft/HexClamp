@@ -15,19 +15,16 @@ BASE = store.BASE
 
 
 def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
-    """Identify local files as research evidence to ground the result."""
+    """Identify local files as research evidence and ingest content to ground the result."""
     text_lower = text.lower()
     found_files = []
 
-    # Try finding explicit file paths
-    # Matches common project file patterns
+    # Identify candidate files
     file_patterns = re.findall(r"[\w\-./]+\.(?:py|md|yaml|yml|json|sh|txt)", text)
     for p in file_patterns:
-        # Check if it exists relative to BASE
         if (BASE / p).exists():
             found_files.append(p)
 
-    # Heuristic for repository research if no files mentioned
     if not found_files:
         repo_keywords = [
             "hexclamp",
@@ -38,14 +35,31 @@ def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
             "implementation",
         ]
         if any(term in text_lower for term in repo_keywords):
-            # Anchor with root project files to show repo inspection
             for anchor in ["README.md", "pyproject.toml", "CONTRIBUTING.md"]:
                 if (BASE / anchor).exists():
                     found_files.append(anchor)
-                    break  # Just one is enough to ground
+                    break
 
     if found_files:
-        summary = f"Performed grounded research; identified local context in: {', '.join(found_files[:3])}"
+        # Ingest content from the primary identified file
+        primary = found_files[0]
+        path = BASE / primary
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                # Read up to 10 lines for the grounded summary
+                lines = []
+                for _ in range(10):
+                    line = f.readline()
+                    if not line:
+                        break
+                    lines.append(line.strip())
+                content_snippet = " / ".join([l for l in lines if l])
+            summary = (
+                f"Performed grounded research in {primary}. Found content: "
+                f"\"{content_snippet[:150]}...\""
+            )
+        except Exception as e:
+            summary = f"Performed grounded research in {primary} but could not read content: {e}"
         return summary, found_files
 
     return "", []
