@@ -4,8 +4,8 @@ import yaml
 from pathlib import Path
 from typing import List
 
-from models import Action, Result
-from validate import validate_payload
+from agents.models import Action, Result
+from agents.validate import validate_payload
 
 
 MIN_EVIDENCE_BY_TYPE = {
@@ -51,7 +51,7 @@ def _evidence_file_exists(item: str) -> bool:
         # Only count it as evidence if it shows actual completion (not just "pending")
         path = Path(item)
         if not path.is_absolute():
-            from store import BASE
+            from agents.store import BASE
 
             path = BASE / path
         if path.exists() and path.suffix == ".json":
@@ -94,7 +94,7 @@ def _evidence_file_exists(item: str) -> bool:
         return True
 
     # Try BASE-relative
-    from store import BASE
+    from agents.store import BASE
 
     if _exists_within(BASE):
         return True

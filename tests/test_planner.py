@@ -4,10 +4,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(BASE / "agents"))
+sys.path.insert(0, str(BASE))
 
-from models import Event, OpenLoop
-from planner import plan_next_actions, rank_open_loops
+from agents.models import Event, OpenLoop
+from agents.planner import plan_next_actions, rank_open_loops
 
 
 class PlannerTests(unittest.TestCase):

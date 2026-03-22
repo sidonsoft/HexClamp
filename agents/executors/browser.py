@@ -6,10 +6,10 @@ from pathlib import Path
 from datetime import datetime, timezone
 from urllib.parse import quote_plus, urlparse
 
-from models import Action, Event, OpenLoop
-from store import write_json
-from . import base
-from .base import _write_change
+from agents.models import Action, Event, OpenLoop
+from agents.store import write_json
+from agents.executors import base
+from agents.executors.base import _write_change
 
 BROWSER_TASKS_DIR = base.BASE / "runs" / "browser_tasks"
 

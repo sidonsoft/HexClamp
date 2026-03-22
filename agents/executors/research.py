@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from models import Action, Event, OpenLoop
-from .base import (
+from agents.models import Action, Event, OpenLoop
+from agents.executors.base import (
     STALE_EVIDENCE_THRESHOLD,
     _initial_loop_state,
     _write_change,

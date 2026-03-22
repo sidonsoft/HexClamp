@@ -7,7 +7,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
-from store import SCHEMAS_DIR
+from agents.store import SCHEMAS_DIR
 
 
 # Module-level cache for schema registry (loaded once, reused across calls)

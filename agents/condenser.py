@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import List
 
-from models import CurrentState, Event, OpenLoop
-from validate import validate_payload
+from agents.models import CurrentState, Event, OpenLoop
+from agents.validate import validate_payload
 
 
 def condense_state(

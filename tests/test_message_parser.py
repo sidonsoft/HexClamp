@@ -3,9 +3,9 @@ import unittest
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(BASE / "agents"))
+sys.path.insert(0, str(BASE))
 
-from executors import _parse_message_task
+from agents.executors import _parse_message_task
 
 
 class MessageParserTests(unittest.TestCase):

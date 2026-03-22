@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from models import Event
-from validate import validate_payload
+from agents.models import Event
+from agents.validate import validate_payload
 
 
 def observe_chat_message(text: str, priority: str = "normal") -> Event:

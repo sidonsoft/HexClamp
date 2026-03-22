@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 BASE = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(BASE / "agents"))
+sys.path.insert(0, str(BASE))
 
 from agents.delivery import TelegramDeliveryAgent, DeliveryResult
 

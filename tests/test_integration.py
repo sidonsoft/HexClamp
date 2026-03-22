@@ -6,15 +6,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 BASE = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(BASE / "agents"))
+sys.path.insert(0, str(BASE))
 
-import executors
-import executors.base
-import executors.browser
-import executors.messaging
-import executors.code_executor
-import loop
-import store
+from agents import executors
+from agents.executors import base
+from agents.executors import browser
+from agents.executors import messaging
+from agents.executors import code_executor
+from agents import loop
+from agents import store
 
 
 class IntegrationTests(unittest.TestCase):

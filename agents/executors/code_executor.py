@@ -9,10 +9,10 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, cast
 
-from models import Action, Event, OpenLoop
-from store import write_json
-from . import base
-from .base import (
+from agents.models import Action, Event, OpenLoop
+from agents.store import write_json
+from agents.executors import base
+from agents.executors.base import (
     _load_policies,
     _quality_gate_changed_files,
     _run_python_test,
@@ -95,7 +95,7 @@ def _find_target_files(source_text: str, workspace_root: Path) -> list[Path]:
 
 def _resolve_spawn_coding_agent():
     """Resolve the current package-level spawn hook for backward-compatible patching."""
-    package = sys.modules.get("executors")
+    package = sys.modules.get("agents.executors")
     if package is not None and hasattr(package, "_spawn_coding_agent"):
         return getattr(package, "_spawn_coding_agent")
     return _spawn_coding_agent

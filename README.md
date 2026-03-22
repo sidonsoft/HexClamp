@@ -79,17 +79,17 @@ prompts/
 
 ```bash
 # Bootstrap runtime state
-python3 agents/loop.py init
+python3 -m agents.loop init
 
 # Enqueue tasks
-python3 agents/loop.py enqueue "investigate the auth bug"
-python3 agents/loop.py enqueue "review PR #42"
+python3 -m agents.loop enqueue "investigate the auth bug"
+python3 -m agents.loop enqueue "review PR #42"
 
 # Run one cycle
-python3 agents/loop.py
+python3 -m agents.loop
 
 # Run tests
-make test
+python3 -m pytest -q
 ```
 
 ## Environment variables

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from datetime import datetime, timezone
 from contextlib import contextmanager
 import fcntl
 from pathlib import Path
@@ -76,6 +77,13 @@ def read_json(path: Path, default: Any = None) -> Any:
         return json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError):
         return default
+
+
+def _parse_datetime(dt_str: str) -> datetime:
+    """Helper to parse optionally Z-suffixed ISO datetimes."""
+    if dt_str.endswith("Z"):
+        return datetime.fromisoformat(dt_str[:-1]).replace(tzinfo=timezone.utc)
+    return datetime.fromisoformat(dt_str)
 
 
 def write_json(path: Path, data: Any) -> None:

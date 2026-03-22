@@ -6,11 +6,11 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from models import Action, Event, OpenLoop
-from store import write_json
-from . import base
+from agents.models import Action, Event, OpenLoop
+from agents.store import write_json
+from agents.executors import base
 from agents.delivery import TelegramDeliveryAgent
-from .base import (
+from agents.executors.base import (
     _load_policies,
     _initial_loop_state,
     _write_change,

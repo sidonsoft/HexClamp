@@ -8,9 +8,9 @@ from typing import Any, Dict, List, cast
 import yaml
 from pathlib import Path
 
-import store
-from condenser import condense_state
-from executors import (
+from agents import store
+from agents.condenser import condense_state
+from agents.executors import (
     execute_browser_for_event,
     execute_browser_for_loop,
     execute_code_for_event,
@@ -22,9 +22,9 @@ from executors import (
 )
 
 WORKSPACE_ROOT = Path.home() / ".openclaw" / "workspace"
-from models import CurrentState, Event, OpenLoop
-from observer import observe_chat_message
-from store import (
+from agents.models import CurrentState, Event, OpenLoop
+from agents.observer import observe_chat_message
+from agents.store import (
     RUNS_DIR,
     STATE_DIR,
     append_json_array,
@@ -61,22 +61,10 @@ def _persist_circuit_breaker_state() -> None:
     )
 
 
-def _parse_datetime(dt_str: str) -> datetime:
-    """Parse ISO datetime string, raising on failure instead of silently falling back."""
-    if not dt_str:
-        raise ValueError("Empty datetime string")
-    if dt_str.endswith("Z"):
-        dt_str = dt_str[:-1] + "+00:00"
-    try:
-        return datetime.fromisoformat(dt_str)
-    except ValueError:
-        raise ValueError(f"Invalid datetime string: {dt_str!r}")
-
-
-from planner import plan_next_actions, rank_open_loops, STALE_THRESHOLD_HOURS
-
-from validate import validate_payload
-from verifier import verify_result
+from agents.store import _parse_datetime
+from agents.planner import plan_next_actions, rank_open_loops, STALE_THRESHOLD_HOURS
+from agents.validate import validate_payload
+from agents.verifier import verify_result
 
 
 EVENT_QUEUE_PATH = STATE_DIR / "event_queue.json"
