@@ -297,7 +297,9 @@ def print_status() -> None:
         if ranked:
             print("Current priorities:")
             for i, loop_obj in enumerate(ranked[:3]):
-                print(f"  {i+1}. {loop_obj.title[:60]}{'...' if len(loop_obj.title) > 60 else ''}")
+                status_tag = f" [{loop_obj.status.upper()}]" if loop_obj.status != "open" else ""
+                owner_tag = f" ({loop_obj.owner})"
+                print(f"  {i+1}.{status_tag}{owner_tag} {loop_obj.title[:60]}{'...' if len(loop_obj.title) > 60 else ''}")
 
     actions = state.get("current_actions", [])
     print(f"Active Actions: {len(actions)}")
