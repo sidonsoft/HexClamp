@@ -2,6 +2,7 @@ import json
 import sys
 import tempfile
 import unittest
+import contextlib
 from pathlib import Path
 from unittest.mock import patch
 
@@ -493,6 +494,100 @@ class IntegrationTests(unittest.TestCase):
                 )
                 self.assertEqual(last_run["processed_event"]["id"], queued.id)
                 self.assertFalse(last_run["result"]["verified"])
+
+    def test_poll_telegram_and_approve_messaging_task(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+
+            # Additional patches for polling
+            polling_state_path = tmp / "state" / "polling_state.json"
+
+            patches = self._run_with_fresh_runtime(tmp)
+            patches["loop_POLLING_STATE_PATH"] = patch.object(
+                loop, "POLLING_STATE_PATH", polling_state_path
+            )
+            # Patch get_bot_token to avoid RuntimeError
+            patches["get_bot_token"] = patch(
+                "agents.delivery.get_bot_token", return_value="faked"
+            )
+
+            with contextlib.ExitStack() as stack:
+                for p in patches.values():
+                    stack.enter_context(p)
+
+                store.bootstrap_runtime_state()
+
+                # Mock updates: one normal, one approval for existing task
+                task_id = "act-mock-123"
+                (tmp / "runs" / "messaging_tasks" / task_id).mkdir(
+                    parents=True, exist_ok=True
+                )
+
+                mock_updates = {
+                    "ok": True,
+                    "result": [
+                        {
+                            "update_id": 300,
+                            "message": {
+                                "message_id": 700,
+                                "text": "Normal Request",
+                                "from": {"id": 1, "username": "user1"},
+                                "chat": {"id": 1234, "type": "private"},
+                            },
+                        },
+                        {
+                            "update_id": 301,
+                            "message": {
+                                "message_id": 701,
+                                "text": f"/approve {task_id}",
+                                "from": {"id": 2, "username": "admin"},
+                                "chat": {"id": 5678, "type": "private"},
+                            },
+                        },
+                    ],
+                }
+
+                with patch("requests.get") as mock_get:
+                    mock_get.return_value.json.return_value = mock_updates
+                    mock_get.return_value.status_code = 200
+
+                    # 1. Run first poll
+                    new_events = loop.poll_events()
+
+                    # Verify first poll results
+                    self.assertEqual(len(new_events), 2)
+                    self.assertEqual(new_events[0].payload["text"], "Normal Request")
+                    self.assertEqual(
+                        new_events[1].payload["text"],
+                        f"Approved messaging task: {task_id}",
+                    )
+
+                    # Verify metadata attached to events
+                    self.assertEqual(
+                        new_events[0].payload["telegram"]["sender_username"], "user1"
+                    )
+                    self.assertEqual(
+                        new_events[1].payload["telegram"]["sender_username"], "admin"
+                    )
+
+                    # Verify sentinel file creation
+                    sentinel = tmp / "runs" / "messaging_tasks" / task_id / "approved"
+                    self.assertTrue(sentinel.exists())
+
+                    # Verify offset persistence in polling state
+                    with open(polling_state_path, "r") as f:
+                        state = json.load(f)
+                        self.assertEqual(state["last_offset"], 302)
+
+                    # 2. Run second poll (verify offset parameter usage)
+                    mock_get.reset_mock()
+                    mock_get.return_value.json.return_value = {"ok": True, "result": []}
+
+                    loop.poll_events()
+
+                    # Verify correctly advanced offset was sent to API
+                    call_args = mock_get.call_args
+                    self.assertEqual(call_args.kwargs["params"]["offset"], 302)
 
 
 if __name__ == "__main__":
