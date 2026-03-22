@@ -286,7 +286,19 @@ def print_status() -> None:
             print(f"  - [{ev.get('id')[:8]}] {text[:60]}{'...' if len(text) > 60 else ''}")
 
     print(f"\nOpen Loops: {len(state.get('open_loops', []))}")
-    
+    loops_data = read_json(OPEN_LOOPS_PATH, default=[])
+    if loops_data:
+        from datetime import datetime
+        now = datetime.now()
+        # Rank them to show the top 3 next priorities
+        from agents.models import OpenLoop
+        loop_objs = [OpenLoop(**l) for l in loops_data]
+        ranked = rank_open_loops(loop_objs)
+        if ranked:
+            print("Current priorities:")
+            for i, loop_obj in enumerate(ranked[:3]):
+                print(f"  {i+1}. {loop_obj.title[:60]}{'...' if len(loop_obj.title) > 60 else ''}")
+
     actions = state.get("current_actions", [])
     print(f"Active Actions: {len(actions)}")
     # Resolve action details if possible
