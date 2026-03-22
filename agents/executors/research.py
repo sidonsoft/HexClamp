@@ -88,9 +88,11 @@ def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
                                 if "sentinel_path" not in it_content:
                                     summary = (
                                         f"Grounded research in {primary} and tests/test_integration.py:\n"
-                                        f"- Finding: Messaging approval use a sentinel file mechanism ('sentinel_path') not covered in integration tests.\n"
-                                        f"- File to change: tests/test_integration.py\n"
-                                        f"- Recommendation: Add 'test_messaging_loop_approved_via_sentinel' to verify that creating the sentinel 'approved' file unblocks and resolves the loop."
+                                        f"1. Finding: Messaging approval mechanism ('sentinel_path') is not covered by integration tests.\n"
+                                        f"2. Evidence: {primary} uses 'sentinel_path' for approvals.\n"
+                                        f"3. Recommendation: Add 'test_messaging_loop_approved_via_sentinel' to verify full E2E approval flow.\n"
+                                        f"4. Target File: tests/test_integration.py\n"
+                                        f"5. Next Step: Implement the missing integration test case."
                                     )
                                     return summary, found_files
 
@@ -98,9 +100,11 @@ def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
                     finding = f"Identified stale instruction: \"{stale_instruction}\""
                     summary = (
                         f"Grounded research in {primary}:\n"
-                        f"- Finding: {finding}\n"
-                        f"- Original: {stale_instruction}\n"
-                        f"- Correction: {correction}"
+                        f"1. Finding: Identified stale instruction: \"{stale_instruction}\".\n"
+                        f"2. Evidence: {primary} line contains outdated reference.\n"
+                        f"3. Recommendation: Change \"{stale_instruction}\" to \"{correction}\".\n"
+                        f"4. Target File: {primary}\n"
+                        f"5. Next Step: Apply the documentation correction."
                     )
                     # If we found a concrete stale instruction, this is the best result
                     return summary, found_files
@@ -117,8 +121,11 @@ def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
 
                     best_summary = (
                         f"Grounded research in {primary}:\n"
-                        f"- Finding: {finding}\n"
-                        f"- Next Action: {next_action}"
+                        f"1. Finding: {finding}\n"
+                        f"2. Evidence: {primary}\n"
+                        f"3. Recommendation: Analyze referenced file to address task goal.\n"
+                        f"4. Target File: {primary}\n"
+                        f"5. Next Step: {next_action}"
                     )
             except Exception as e:
                 if not best_summary:
