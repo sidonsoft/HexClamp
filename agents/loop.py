@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, cast
@@ -211,6 +212,20 @@ def poll_events() -> list[Event]:
                 "sender_username": sender.get("username"),
             }
         }
+
+        # Handle inbound approvals for messaging tasks
+        approval_match = re.search(
+            r"^(?:/)?approve\s+([\w\-]+)", text.strip(), re.IGNORECASE
+        )
+        if approval_match:
+            task_id = approval_match.group(1)
+            from agents.executors.messaging import MESSAGING_TASKS_DIR
+
+            sentinel_dir = MESSAGING_TASKS_DIR / task_id
+            if sentinel_dir.exists():
+                (sentinel_dir / "approved").touch()
+                text = f"Approved messaging task: {task_id}"
+
         event = queue_event(text, metadata=metadata)
         events.append(event)
 
