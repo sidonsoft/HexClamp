@@ -273,7 +273,9 @@ def print_status() -> None:
         print("No runtime state found. Run 'init' first.")
         return
 
-    queue = read_json(EVENT_QUEUE_PATH, default=[])
+    queue_data = read_json(EVENT_QUEUE_PATH, default=[])
+    from agents.models import Event
+    queue = [Event(**item) for item in queue_data]
 
     print("=== HexClamp Status ===")
     print(f"Goal: {state.get('goal')}")
@@ -282,8 +284,8 @@ def print_status() -> None:
     if queue:
         print("Next in queue:")
         for ev in queue[:3]:
-            text = ev.get("payload", {}).get("text", "No text")
-            print(f"  - [{ev.get('id')[:8]}] {text[:60]}{'...' if len(text) > 60 else ''}")
+            text = ev.payload.get("text", "No text")
+            print(f"  - [{ev.id[:8]}] {text[:60]}{'...' if len(text) > 60 else ''}")
 
     print(f"\nOpen Loops: {len(state.get('open_loops', []))}")
     loops_data = read_json(OPEN_LOOPS_PATH, default=[])
@@ -303,13 +305,18 @@ def print_status() -> None:
 
     actions = state.get("current_actions", [])
     print(f"Active Actions: {len(actions)}")
-    # Resolve action details if possible
     if actions:
         for act_id in actions:
-            # We don't easily have the action object here, but we can look in runs/ ?
-            # Actually they are in 'recent_events' or we can ignore for now and just show IDs.
-            # But the 'actions' in state are just IDs.
             print(f"  - {act_id}")
+
+    # Show what the system WOULD do in the next cycle
+    planned_actions = plan_next_actions(queue, loop_objs)
+    if planned_actions:
+        next_act = planned_actions[0]
+        print(f"\nPlanned Next Action:")
+        print(f"  Type: {next_act.type}")
+        print(f"  Goal: {next_act.goal}")
+        print(f"  Executor: {next_act.executor}")
 
     last_res = state.get("last_verified_result")
     if last_res:
