@@ -1,9 +1,8 @@
 # Runtime artifacts
 runs/
-state/current_state.json
-state/event_queue.json
-state/open_loops.json
-state/recent_changes.md
+state/*.json
+state/*.md
+state/*.lock
 *.pyc
 __pycache__/
 .DS_Store
