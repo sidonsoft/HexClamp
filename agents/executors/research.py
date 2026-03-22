@@ -54,9 +54,20 @@ def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
                         break
                     lines.append(line.strip())
                 content_snippet = " / ".join([l for l in lines if l])
+
+            # Heuristic for finding and next action based on common repo tasks
+            finding = f"File exists and initial content identifies as: \"{content_snippet[:100]}...\""
+            if "readme" in primary.lower() or "contributing" in primary.lower():
+                next_action = f"Evaluate Documentation in {primary} against actual implementation state."
+            elif primary.endswith(".py"):
+                next_action = f"Analyze logic or structure in {primary} to address the request."
+            else:
+                next_action = f"Perform deep inspection of {primary} to fulfill research goal."
+
             summary = (
-                f"Performed grounded research in {primary}. Found content: "
-                f"\"{content_snippet[:150]}...\""
+                f"Grounded research in {primary}:\n"
+                f"- Finding: {finding}\n"
+                f"- Next Action: {next_action}"
             )
         except Exception as e:
             summary = f"Performed grounded research in {primary} but could not read content: {e}"
