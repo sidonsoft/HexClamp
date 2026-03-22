@@ -552,22 +552,23 @@ class IntegrationTests(unittest.TestCase):
                     mock_get.return_value.status_code = 200
 
                     # 1. Run first poll
-                    new_events = loop.poll_events()
+                    result = loop.poll_events()
+                    new_events = result["events"]
 
                     # Verify first poll results
                     self.assertEqual(len(new_events), 2)
-                    self.assertEqual(new_events[0].payload["text"], "Normal Request")
+                    self.assertEqual(new_events[0]["payload"]["text"], "Normal Request")
                     self.assertEqual(
-                        new_events[1].payload["text"],
+                        new_events[1]["payload"]["text"],
                         f"Approved messaging task: {task_id}",
                     )
 
                     # Verify metadata attached to events
                     self.assertEqual(
-                        new_events[0].payload["telegram"]["sender_username"], "user1"
+                        new_events[0]["payload"]["telegram"]["sender_username"], "user1"
                     )
                     self.assertEqual(
-                        new_events[1].payload["telegram"]["sender_username"], "admin"
+                        new_events[1]["payload"]["telegram"]["sender_username"], "admin"
                     )
 
                     # Verify sentinel file creation

@@ -175,7 +175,7 @@ def queue_event(
     return event
 
 
-def poll_events() -> list[Event]:
+def poll_events() -> dict:
     """Poll Telegram for new messages and enqueue them as events."""
     from agents.delivery import TelegramDeliveryAgent
 
@@ -187,6 +187,8 @@ def poll_events() -> list[Event]:
     updates = agent.get_updates(offset=offset)
 
     events = []
+    ignored = 0
+    approvals = 0
     max_update_id = offset
 
     for update in updates:
@@ -196,6 +198,7 @@ def poll_events() -> list[Event]:
 
         message = update.get("message")
         if not message or "text" not in message:
+            ignored += 1
             continue
 
         text = message.get("text")
@@ -225,6 +228,7 @@ def poll_events() -> list[Event]:
             if sentinel_dir.exists():
                 (sentinel_dir / "approved").touch()
                 text = f"Approved messaging task: {task_id}"
+                approvals += 1
 
         event = queue_event(text, metadata=metadata)
         events.append(event)
@@ -233,7 +237,14 @@ def poll_events() -> list[Event]:
     if max_update_id is not None:
         write_json(POLLING_STATE_PATH, {"last_offset": max_update_id})
 
-    return events
+    return {
+        "polled": len(updates),
+        "enqueued": len(events),
+        "ignored": ignored,
+        "approvals": approvals,
+        "new_offset": max_update_id,
+        "events": [e.to_dict() for e in events],
+    }
 
 
 def _replace_or_append_loop(
@@ -399,16 +410,8 @@ if __name__ == "__main__":
         print(json.dumps({"queued": event.to_dict()}, indent=2))
     elif len(sys.argv) > 1 and sys.argv[1] == "poll":
         bootstrap_runtime_state()
-        new_events = poll_events()
-        print(
-            json.dumps(
-                {
-                    "polled": len(new_events),
-                    "events": [e.to_dict() for e in new_events],
-                    "offset_stored_at": str(POLLING_STATE_PATH.relative_to(store.BASE)),
-                },
-                indent=2,
-            )
-        )
+        summary = poll_events()
+        summary["offset_stored_at"] = str(POLLING_STATE_PATH.relative_to(store.BASE))
+        print(json.dumps(summary, indent=2))
     else:
         print(json.dumps(process_once(), indent=2))
