@@ -274,13 +274,29 @@ def print_status() -> None:
         return
 
     queue = read_json(EVENT_QUEUE_PATH, default=[])
-    
+
     print("=== HexClamp Status ===")
     print(f"Goal: {state.get('goal')}")
-    print(f"Queue Size: {len(queue)} events")
-    print(f"Open Loops: {len(state.get('open_loops', []))}")
-    print(f"Active Actions: {len(state.get('current_actions', []))}")
+
+    print(f"\nQueue Size: {len(queue)} events")
+    if queue:
+        print("Next in queue:")
+        for ev in queue[:3]:
+            text = ev.get("payload", {}).get("text", "No text")
+            print(f"  - [{ev.get('id')[:8]}] {text[:60]}{'...' if len(text) > 60 else ''}")
+
+    print(f"\nOpen Loops: {len(state.get('open_loops', []))}")
     
+    actions = state.get("current_actions", [])
+    print(f"Active Actions: {len(actions)}")
+    # Resolve action details if possible
+    if actions:
+        for act_id in actions:
+            # We don't easily have the action object here, but we can look in runs/ ?
+            # Actually they are in 'recent_events' or we can ignore for now and just show IDs.
+            # But the 'actions' in state are just IDs.
+            print(f"  - {act_id}")
+
     last_res = state.get("last_verified_result")
     if last_res:
         print("\n--- Last Verified Result ---")
