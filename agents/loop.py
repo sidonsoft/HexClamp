@@ -166,8 +166,10 @@ def save_open_loops(open_loops: List[OpenLoop]) -> None:
     write_json(OPEN_LOOPS_PATH, payload)
 
 
-def queue_event(text: str, priority: str = "normal") -> Event:
-    event = observe_chat_message(text, priority=priority)
+def queue_event(
+    text: str, priority: str = "normal", metadata: dict | None = None
+) -> Event:
+    event = observe_chat_message(text, priority=priority, metadata=metadata)
     append_json_array(EVENT_QUEUE_PATH, event.to_dict())
     return event
 
@@ -192,15 +194,24 @@ def poll_events() -> list[Event]:
             max_update_id = update_id + 1
 
         message = update.get("message")
-        if not message:
+        if not message or "text" not in message:
             continue
 
         text = message.get("text")
-        if not text:
-            continue
+        sender = message.get("from", {})
+        chat = message.get("chat", {})
 
-        # Convert to event
-        event = queue_event(text)
+        # Convert to event with metadata for traceability
+        metadata = {
+            "telegram": {
+                "update_id": update_id,
+                "message_id": message.get("message_id"),
+                "chat_id": chat.get("id"),
+                "sender_id": sender.get("id"),
+                "sender_username": sender.get("username"),
+            }
+        }
+        event = queue_event(text, metadata=metadata)
         events.append(event)
 
     # Save offset
