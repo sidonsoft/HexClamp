@@ -510,6 +510,10 @@ class IntegrationTests(unittest.TestCase):
             patches["get_bot_token"] = patch(
                 "agents.delivery.get_bot_token", return_value="faked"
             )
+            # Patch authorization environment
+            patches["auth_env"] = patch.dict(
+                "os.environ", {"TELEGRAM_AUTHORIZED_USER_IDS": "1,2"}
+            )
 
             with contextlib.ExitStack() as stack:
                 for p in patches.values():
@@ -589,6 +593,68 @@ class IntegrationTests(unittest.TestCase):
                     # Verify correctly advanced offset was sent to API
                     call_args = mock_get.call_args
                     self.assertEqual(call_args.kwargs["params"]["offset"], 302)
+
+    def test_poll_unauthorized_approval_fails(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+
+            # Additional patches for polling
+            polling_state_path = tmp / "state" / "polling_state.json"
+
+            patches = self._run_with_fresh_runtime(tmp)
+            patches["loop_POLLING_STATE_PATH"] = patch.object(
+                loop, "POLLING_STATE_PATH", polling_state_path
+            )
+            # Patch get_bot_token to avoid RuntimeError
+            patches["get_bot_token"] = patch(
+                "agents.delivery.get_bot_token", return_value="faked"
+            )
+            # Only user 1 is authorized
+            patches["auth_env"] = patch.dict(
+                "os.environ", {"TELEGRAM_AUTHORIZED_USER_IDS": "1"}
+            )
+
+            with contextlib.ExitStack() as stack:
+                for p in patches.values():
+                    stack.enter_context(p)
+
+                store.bootstrap_runtime_state()
+
+                # Mock updates: approval attempted by unauthorized user 99
+                task_id = "act-mock-456"
+                (tmp / "runs" / "messaging_tasks" / task_id).mkdir(
+                    parents=True, exist_ok=True
+                )
+
+                mock_updates = {
+                    "ok": True,
+                    "result": [
+                        {
+                            "update_id": 400,
+                            "message": {
+                                "update_id": 400,
+                                "message_id": 800,
+                                "text": f"/approve {task_id}",
+                                "from": {"id": 99, "username": "intruder"},
+                                "chat": {"id": 1234, "type": "private"},
+                            },
+                        }
+                    ],
+                }
+
+                with patch("requests.get") as mock_get:
+                    mock_get.return_value.json.return_value = mock_updates
+                    mock_get.return_value.status_code = 200
+
+                    result = loop.poll_events()
+
+                    # Verify no sentinel was created
+                    sentinel = tmp / "runs" / "messaging_tasks" / task_id / "approved"
+                    self.assertFalse(sentinel.exists())
+
+                    # Verify event text reflects unauthorized attempt
+                    self.assertIn("Unauthorized", result["events"][0]["payload"]["text"])
+                    self.assertEqual(result["approvals"], 0)
 
 
 if __name__ == "__main__":

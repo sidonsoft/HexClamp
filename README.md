@@ -105,7 +105,7 @@ python3 -m agents.loop poll
 - `polled`: Total updates retrieved from the Bot API.
 - `enqueued`: Updates normalized as new Events in `state/event_queue.json`.
 - `ignored`: Non-text updates (photos, stickers) safely skipped.
-- `approvals`: Messages matching `/approve <id>` to unblock messaging tasks.
+- `approvals`: Messages matching `/approve <id>` to unblock messaging tasks. **Note:** Requires `TELEGRAM_AUTHORIZED_USER_IDS` allowlist.
 - `new_offset`: Persisted in `state/polling_state.json` to prevent duplicates.
 
 ## Environment variables
@@ -113,10 +113,11 @@ python3 -m agents.loop poll
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `TELEGRAM_BOT_TOKEN` | Yes (for messaging) | none | Bot token for Telegram delivery. Required when the messaging executor is enabled. Do not commit production tokens. |
+| `TELEGRAM_AUTHORIZED_USER_IDS` | Yes (for polling approvals) | none | Comma-separated list of Telegram user IDs authorized to approve tasks (e.g., `123,456`). Required for secure inbound approvals. |
 
 ## Testing
 
-50 tests — all passing:
+51 tests — all passing:
 
 ```bash
 python3 -m pytest -q

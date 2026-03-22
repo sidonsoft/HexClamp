@@ -167,6 +167,22 @@ def save_open_loops(open_loops: List[OpenLoop]) -> None:
     write_json(OPEN_LOOPS_PATH, payload)
 
 
+def _is_authorized(sender_id: int | None) -> bool:
+    """Check if a Telegram sender ID is authorized to perform administrative actions."""
+    import os
+
+    if not sender_id:
+        return False
+    auth_env = os.environ.get("TELEGRAM_AUTHORIZED_USER_IDS", "")
+    if not auth_env:
+        return False
+    try:
+        authorized_ids = [int(i.strip()) for i in auth_env.split(",") if i.strip()]
+        return sender_id in authorized_ids
+    except ValueError:
+        return False
+
+
 def queue_event(
     text: str, priority: str = "normal", metadata: dict | None = None
 ) -> Event:
@@ -226,9 +242,12 @@ def poll_events() -> dict:
 
             sentinel_dir = MESSAGING_TASKS_DIR / task_id
             if sentinel_dir.exists():
-                (sentinel_dir / "approved").touch()
-                text = f"Approved messaging task: {task_id}"
-                approvals += 1
+                if _is_authorized(sender.get("id")):
+                    (sentinel_dir / "approved").touch()
+                    text = f"Approved messaging task: {task_id}"
+                    approvals += 1
+                else:
+                    text = f"Unauthorized approval attempt for task: {task_id} (id={sender.get('id')})"
 
         event = queue_event(text, metadata=metadata)
         events.append(event)
