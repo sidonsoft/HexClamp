@@ -16,6 +16,14 @@ RUNS_DIR = BASE / "runs"
 SCHEMAS_DIR = BASE / "schemas"
 
 
+def get_workspace_root() -> Path:
+    """Get the central workspace root directory, respecting branding and configuration."""
+    override = os.environ.get("HEXCLAMP_WORKSPACE")
+    if override:
+        return Path(override)
+    return Path.home() / ".hexclamp" / "workspace"
+
+
 RUNTIME_JSON_DEFAULTS = {
     STATE_DIR / "current_state.json": {
         "goal": "Keep hexclamp coherent and progressing",

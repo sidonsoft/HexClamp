@@ -237,7 +237,7 @@ def execute_code_for_event(
     text = event.payload.get("text", "")
 
     if workspace_root is None:
-        workspace_root = base.BASE.parent.parent / "workspace"
+        workspace_root = base.store.get_workspace_root()
 
     task_meta_dir = CODE_TASKS_DIR / action.id
     task_meta_dir.mkdir(parents=True, exist_ok=True)
@@ -346,7 +346,7 @@ def execute_code_for_loop(
     action: Action, loop: OpenLoop, workspace_root: Path | None = None
 ) -> tuple[str, list[str], list[str], OpenLoop]:
     if workspace_root is None:
-        workspace_root = base.BASE.parent.parent / "workspace"
+        workspace_root = base.store.get_workspace_root()
 
     policies = _load_policies()
     if policies.get("code", {}).get("require_approval", False):

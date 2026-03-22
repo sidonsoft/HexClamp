@@ -89,7 +89,8 @@ def _evidence_file_exists(item: str) -> bool:
         return candidate.exists()
 
     # Try workspace-relative
-    workspace = Path.home() / ".openclaw" / "workspace"
+    from agents.store import get_workspace_root
+    workspace = get_workspace_root()
     if _exists_within(workspace):
         return True
 

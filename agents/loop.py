@@ -20,9 +20,6 @@ from agents.executors import (
     execute_research_for_event,
     execute_research_for_loop,
 )
-
-WORKSPACE_ROOT = Path.home() / ".openclaw" / "workspace"
-from agents.models import CurrentState, Event, OpenLoop
 from agents.observer import observe_chat_message
 from agents.store import (
     RUNS_DIR,
@@ -30,9 +27,13 @@ from agents.store import (
     append_json_array,
     bootstrap_runtime_state,
     ensure_dirs,
+    get_workspace_root,
     read_json,
     write_json,
 )
+
+WORKSPACE_ROOT = get_workspace_root()
+from agents.models import CurrentState, Event, OpenLoop
 
 MAX_CONSECUTIVE_ERRORS = 3
 _circuit_open = False
