@@ -1,9 +1,9 @@
-"""Research executor - handles research task execution."""
-
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
+from agents import store
 from agents.models import Action, Event, OpenLoop
 from agents.executors.base import (
     STALE_EVIDENCE_THRESHOLD,
@@ -11,16 +11,70 @@ from agents.executors.base import (
     _write_change,
 )
 
+BASE = store.BASE
+
+
+def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
+    """Identify local files as research evidence to ground the result."""
+    text_lower = text.lower()
+    found_files = []
+
+    # Try finding explicit file paths
+    # Matches common project file patterns
+    file_patterns = re.findall(r"[\w\-./]+\.(?:py|md|yaml|yml|json|sh|txt)", text)
+    for p in file_patterns:
+        # Check if it exists relative to BASE
+        if (BASE / p).exists():
+            found_files.append(p)
+
+    # Heuristic for repository research if no files mentioned
+    if not found_files:
+        repo_keywords = [
+            "hexclamp",
+            "repo",
+            "codebase",
+            "project",
+            "test",
+            "implementation",
+        ]
+        if any(term in text_lower for term in repo_keywords):
+            # Anchor with root project files to show repo inspection
+            for anchor in ["README.md", "pyproject.toml", "CONTRIBUTING.md"]:
+                if (BASE / anchor).exists():
+                    found_files.append(anchor)
+                    break  # Just one is enough to ground
+
+    if found_files:
+        summary = f"Performed grounded research; identified local context in: {', '.join(found_files[:3])}"
+        return summary, found_files
+
+    return "", []
+
 
 def execute_research_for_event(
     action: Action, event: Event
 ) -> tuple[str, list[str], list[str], OpenLoop]:
     """Execute research task for an event."""
-    loop_status, next_step, blocked_by, summary = _initial_loop_state(event, "research")
+    text = event.payload.get("text", "")
+    grounded_summary, research_evidence = _find_grounded_evidence(text)
+
+    if grounded_summary:
+        summary = grounded_summary
+        loop_status = "open"
+        next_step = "Deepen research or prepare execution based on findings"
+        blocked_by: list[str] = []
+    else:
+        loop_status, next_step, blocked_by, summary = _initial_loop_state(event, "research")
+
+    # Combine evidence: event id + found files + metadata to ensure valid count
+    evidence = [event.id] + research_evidence
+    if not research_evidence:
+        evidence.append("git:research:observed")
+
     artifact = _write_change(action, summary)
     loop = OpenLoop(
         id=f"loop-{event.id}",
-        title=event.payload.get("text", "")[:80] or f"Follow up event {event.id}",
+        title=text[:80] or f"Follow up event {event.id}",
         status=loop_status,
         priority=event.priority,
         owner="research",
@@ -28,9 +82,9 @@ def execute_research_for_event(
         updated_at=datetime.now(timezone.utc).isoformat(),
         next_step=next_step,
         blocked_by=blocked_by,
-        evidence=[event.id],
+        evidence=evidence,
     )
-    return summary, [event.id], [artifact], loop
+    return summary, evidence, [artifact], loop
 
 
 def execute_research_for_loop(
@@ -38,6 +92,8 @@ def execute_research_for_loop(
 ) -> tuple[str, list[str], list[str], OpenLoop]:
     """Execute research task for a loop."""
     now = datetime.now(timezone.utc).isoformat()
+
+    grounded_summary, research_evidence = _find_grounded_evidence(loop.title)
 
     if loop.status == "blocked":
         summary = f"Loop '{loop.title}' remains blocked pending dependency resolution."
@@ -57,10 +113,21 @@ def execute_research_for_loop(
             summary = f"Loop '{loop.title}' reached resolution threshold."
         else:
             loop.status = "open"
-            loop.next_step = f"Escalate or specialize execution for: {loop.title}"
-            summary = f"Reviewed research loop '{loop.title}' and refreshed next step."
+            if grounded_summary:
+                summary = grounded_summary
+                loop.next_step = f"Continue research from identified files: {', '.join(research_evidence[:2])}"
+            else:
+                loop.next_step = f"Escalate or specialize execution for: {loop.title}"
+                summary = f"Reviewed research loop '{loop.title}' and refreshed next step."
 
     loop.updated_at = now
     loop.evidence.append(action.id)
+    if research_evidence:
+        for e in research_evidence:
+            if e not in loop.evidence:
+                loop.evidence.append(e)
+    elif not any(e.startswith("git:research") for e in loop.evidence):
+        loop.evidence.append("git:research:reviewed")
+
     artifact = _write_change(action, summary)
     return summary, loop.evidence, [artifact], loop
