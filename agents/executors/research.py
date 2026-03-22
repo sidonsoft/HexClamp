@@ -33,10 +33,25 @@ def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
             "project",
             "test",
             "implementation",
+            "messaging",
+            "browser",
+            "code",
         ]
         if any(term in text_lower for term in repo_keywords):
-            for anchor in ["README.md", "CONTRIBUTING.md", "pyproject.toml"]:
-                if (BASE / anchor).exists():
+            # Map keywords to primary candidate files
+            candidates = []
+            if "messaging" in text_lower:
+                candidates.append("agents/executors/messaging.py")
+            if "browser" in text_lower:
+                candidates.append("agents/executors/browser.py")
+            if "code" in text_lower:
+                candidates.append("agents/executors/code_executor.py")
+
+            # Add general anchors
+            candidates.extend(["README.md", "CONTRIBUTING.md", "pyproject.toml"])
+
+            for anchor in candidates:
+                if (BASE / anchor).exists() and anchor not in found_files:
                     found_files.append(anchor)
 
     if found_files:
@@ -60,6 +75,24 @@ def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
                     if re.search(stale_pattern, content):
                         stale_instruction = "python3 agents/loop.py"
                         correction = "python3 -m agents.loop"
+
+                # Check for test gaps in messaging approval
+                if "messaging" in text_lower and (
+                    "test" in text_lower or "weak" in text_lower
+                ):
+                    if "messaging.py" in primary:
+                        if "approved" in content and "sentinel_path" in content:
+                            integ_test = BASE / "tests" / "test_integration.py"
+                            if integ_test.exists():
+                                it_content = integ_test.read_text(encoding="utf-8")
+                                if "sentinel_path" not in it_content:
+                                    summary = (
+                                        f"Grounded research in {primary} and tests/test_integration.py:\n"
+                                        f"- Finding: Messaging approval use a sentinel file mechanism ('sentinel_path') not covered in integration tests.\n"
+                                        f"- File to change: tests/test_integration.py\n"
+                                        f"- Recommendation: Add 'test_messaging_loop_approved_via_sentinel' to verify that creating the sentinel 'approved' file unblocks and resolves the loop."
+                                    )
+                                    return summary, found_files
 
                 if stale_instruction:
                     finding = f"Identified stale instruction: \"{stale_instruction}\""
