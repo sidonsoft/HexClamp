@@ -266,6 +266,36 @@ def poll_events() -> dict:
     }
 
 
+def print_status() -> None:
+    """Print a concise summary of the current system state."""
+    state = read_json(CURRENT_STATE_PATH, default=None)
+    if not state:
+        print("No runtime state found. Run 'init' first.")
+        return
+
+    queue = read_json(EVENT_QUEUE_PATH, default=[])
+    
+    print("=== HexClamp Status ===")
+    print(f"Goal: {state.get('goal')}")
+    print(f"Queue Size: {len(queue)} events")
+    print(f"Open Loops: {len(state.get('open_loops', []))}")
+    print(f"Active Actions: {len(state.get('current_actions', []))}")
+    
+    last_res = state.get("last_verified_result")
+    if last_res:
+        print("\n--- Last Verified Result ---")
+        print(f"Action: {last_res.get('action_id')}")
+        print(f"Status: {last_res.get('status')}")
+        summary = last_res.get("summary", "No summary available.")
+        # Print only first few lines of summary if long
+        lines = summary.split("\n")
+        short_summary = "\n".join(lines[:5])
+        if len(lines) > 5:
+            short_summary += "\n..."
+        print(f"Summary:\n{short_summary}")
+    print("========================")
+
+
 def _replace_or_append_loop(
     open_loops: List[OpenLoop], updated: OpenLoop
 ) -> List[OpenLoop]:
@@ -432,5 +462,7 @@ if __name__ == "__main__":
         summary = poll_events()
         summary["offset_stored_at"] = str(POLLING_STATE_PATH.relative_to(store.BASE))
         print(json.dumps(summary, indent=2))
+    elif len(sys.argv) > 1 and sys.argv[1] == "status":
+        print_status()
     else:
         print(json.dumps(process_once(), indent=2))
