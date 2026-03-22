@@ -81,7 +81,7 @@ prompts/
 # Bootstrap runtime state
 python3 -m agents.loop init
 
-# Enqueue tasks
+# Enqueue tasks manually
 python3 -m agents.loop enqueue "investigate the auth bug"
 python3 -m agents.loop enqueue "review PR #42"
 
@@ -92,6 +92,22 @@ python3 -m agents.loop
 python3 -m pytest -q
 ```
 
+## Telegram Inbound (Polling)
+
+HexClamp can ingest inbound Telegram messages as events without manual CLI overhead.
+
+```bash
+# Poll for new messages once
+python3 -m agents.loop poll
+```
+
+**Output Summary:**
+- `polled`: Total updates retrieved from the Bot API.
+- `enqueued`: Updates normalized as new Events in `state/event_queue.json`.
+- `ignored`: Non-text updates (photos, stickers) safely skipped.
+- `approvals`: Messages matching `/approve <id>` to unblock messaging tasks.
+- `new_offset`: Persisted in `state/polling_state.json` to prevent duplicates.
+
 ## Environment variables
 
 | Variable | Required | Default | Description |
@@ -100,7 +116,7 @@ python3 -m pytest -q
 
 ## Testing
 
-49 tests — all passing:
+50 tests — all passing:
 
 ```bash
 python3 -m pytest -q
@@ -110,7 +126,7 @@ python3 -m pytest -q
 |-----------|---------------|
 | `test_bootstrap.py` | Runtime bootstrap |
 | `test_browser_executor.py` | Navigation, URL validation, error handling |
-| `test_integration.py` | End-to-end enqueue → plan → execute → verify |
+| `test_integration.py` | End-to-end enqueue → plan → execute → verify; covers Telegram polling + approvals |
 | `test_message_parser.py` | Message normalization |
 | `test_messaging_delivery.py` | TelegramDeliveryAgent result handling |
 | `test_planner.py` | Loop ranking and urgency scoring |
