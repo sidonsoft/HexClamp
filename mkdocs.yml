@@ -1,0 +1,56 @@
+site_name: HexClamp
+site_description: An inspectable autonomous agent loop scaffold. Observe → Condense → Plan → Execute → Verify → Persist.
+site_url: https://sidonsoft.github.io/HexClamp/
+repo_url: https://github.com/sidonsoft/HexClamp
+repo_name: sidonsoft/HexClamp
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: dark
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: installation.md
+      - Quick Start: quickstart.md
+      - Configuration: configuration.md
+  - Architecture:
+      - Overview: architecture.md
+      - The Loop: loop.md
+      - Executors: executors.md
+  - Reference:
+      - Schemas: schemas.md
+      - Scripts: scripts.md
+      - Environment Variables: environment.md
+  - GitHub → https://github.com/sidonsoft/HexClamp
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sidonsoft/HexClamp
