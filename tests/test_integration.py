@@ -10,7 +10,7 @@ BASE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE))
 
 from agents import executors
-from agents.executors import base
+from agents.executors import base as base_module
 from agents.executors import browser
 from agents.executors import messaging
 from agents.executors import code_executor
@@ -39,9 +39,9 @@ class IntegrationTests(unittest.TestCase):
         RUNTIME_JSON_DEFAULTS / RUNTIME_TEXT_DEFAULTS are patched *after*
         store.STATE_DIR so the dict keys use the already-patched state_dir.
         """
-        base = Path(tmp)
-        state_dir = base / "state"
-        runs_dir = base / "runs"
+        base_path = Path(tmp)
+        state_dir = base_path / "state"
+        runs_dir = base_path / "runs"
         messaging_dir = runs_dir / "messaging_tasks"
         code_dir = runs_dir / "code_tasks"
         browser_dir = runs_dir / "browser_tasks"
@@ -63,7 +63,7 @@ class IntegrationTests(unittest.TestCase):
         }
 
         return {
-            "store_BASE": patch.object(store, "BASE", base),
+            "store_BASE": patch.object(store, "BASE", base_path),
             "store_STATE_DIR": patch.object(store, "STATE_DIR", state_dir),
             "store_RUNS_DIR": patch.object(store, "RUNS_DIR", runs_dir),
             "store_RUNTIME_JSON_DEFAULTS": patch.object(
@@ -72,7 +72,7 @@ class IntegrationTests(unittest.TestCase):
             "store_RUNTIME_TEXT_DEFAULTS": patch.object(
                 store, "RUNTIME_TEXT_DEFAULTS", runtime_text_defaults
             ),
-            "executors_BASE": patch.object(executors.base, "BASE", base),
+            "executors_BASE": patch.object(executors.base, "BASE", base_path),
             "executors_MESSAGING_TASKS_DIR": patch.object(
                 executors.messaging, "MESSAGING_TASKS_DIR", messaging_dir
             ),
@@ -653,7 +653,9 @@ class IntegrationTests(unittest.TestCase):
                     self.assertFalse(sentinel.exists())
 
                     # Verify event text reflects unauthorized attempt
-                    self.assertIn("Unauthorized", result["events"][0]["payload"]["text"])
+                    self.assertIn(
+                        "Unauthorized", result["events"][0]["payload"]["text"]
+                    )
                     self.assertEqual(result["approvals"], 0)
 
 

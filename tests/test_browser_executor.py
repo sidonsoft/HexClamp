@@ -11,16 +11,16 @@ BASE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE))
 
 from agents import executors
-from agents.executors import base
+from agents.executors import base as base_module
 from agents.executors import browser
 from agents import store
 
 
 def _fresh_browser_patches(tmp: Path):
     """Build patch objects for a fresh temp runtime with browser tasks dir."""
-    base = Path(tmp)
-    state_dir = base / "state"
-    runs_dir = base / "runs"
+    base_path = Path(tmp)
+    state_dir = base_path / "state"
+    runs_dir = base_path / "runs"
     browser_dir = runs_dir / "browser_tasks"
 
     runtime_json_defaults = {
@@ -40,15 +40,15 @@ def _fresh_browser_patches(tmp: Path):
     }
 
     all_patches = [
-        patch.object(store, "BASE", base),
+        patch.object(store, "BASE", base_path),
         patch.object(store, "STATE_DIR", state_dir),
         patch.object(store, "RUNS_DIR", runs_dir),
         patch.object(store, "RUNTIME_JSON_DEFAULTS", runtime_json_defaults),
         patch.object(store, "RUNTIME_TEXT_DEFAULTS", runtime_text_defaults),
-        patch.object(executors.base, "BASE", base),
+        patch.object(executors.base, "BASE", base_path),
         patch.object(executors.browser, "BROWSER_TASKS_DIR", browser_dir),
     ]
-    return all_patches, base, state_dir, browser_dir
+    return all_patches, base_path, state_dir, browser_dir
 
 
 class MockPage:

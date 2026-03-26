@@ -24,7 +24,7 @@ executors:
     model: default
     role: gather_and_summarize
   code:
-    enabled: false
+    enabled: true
     model: default
     role: modify_and_test
   browser:

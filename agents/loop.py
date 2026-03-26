@@ -205,11 +205,17 @@ def poll_events() -> dict:
     events = []
     ignored = 0
     approvals = 0
-    max_update_id = offset
+    max_update_id = int(offset) if offset else 0
 
     for update in updates:
-        update_id = update.get("update_id")
-        if max_update_id is None or update_id >= max_update_id:
+        raw_id = update.get("update_id")
+        if not isinstance(raw_id, int):
+            ignored += 1
+            continue
+        update_id: int = raw_id
+        if max_update_id and update_id >= max_update_id:
+            max_update_id = update_id + 1
+        elif not max_update_id:
             max_update_id = update_id + 1
 
         message = update.get("message")
@@ -275,6 +281,7 @@ def print_status() -> None:
 
     queue_data = read_json(EVENT_QUEUE_PATH, default=[])
     from agents.models import Event
+
     queue = [Event(**item) for item in queue_data]
 
     print("=== HexClamp Status ===")
@@ -290,18 +297,21 @@ def print_status() -> None:
     print(f"\nOpen Loops: {len(state.get('open_loops', []))}")
     loops_data = read_json(OPEN_LOOPS_PATH, default=[])
     if loops_data:
-        from datetime import datetime
-        now = datetime.now()
         # Rank them to show the top 3 next priorities
         from agents.models import OpenLoop
-        loop_objs = [OpenLoop(**l) for l in loops_data]
+
+        loop_objs = [OpenLoop(**loop_data) for loop_data in loops_data]
         ranked = rank_open_loops(loop_objs)
         if ranked:
             print("Current priorities:")
             for i, loop_obj in enumerate(ranked[:3]):
-                status_tag = f" [{loop_obj.status.upper()}]" if loop_obj.status != "open" else ""
+                status_tag = (
+                    f" [{loop_obj.status.upper()}]" if loop_obj.status != "open" else ""
+                )
                 owner_tag = f" ({loop_obj.owner})"
-                print(f"  {i+1}.{status_tag}{owner_tag} {loop_obj.title[:60]}{'...' if len(loop_obj.title) > 60 else ''}")
+                print(
+                    f"  {i + 1}.{status_tag}{owner_tag} {loop_obj.title[:60]}{'...' if len(loop_obj.title) > 60 else ''}"
+                )
 
     actions = state.get("current_actions", [])
     print(f"Active Actions: {len(actions)}")
@@ -313,7 +323,7 @@ def print_status() -> None:
     planned_actions = plan_next_actions(queue, loop_objs)
     if planned_actions:
         next_act = planned_actions[0]
-        print(f"\nPlanned Next Action:")
+        print("\nPlanned Next Action:")
         print(f"  Type: {next_act.type}")
         print(f"  Goal: {next_act.goal}")
         print(f"  Executor: {next_act.executor}")
@@ -350,7 +360,7 @@ def _replace_or_append_loop(
 
 
 def _active_loop_candidates(open_loops: List[OpenLoop]) -> List[OpenLoop]:
-    return cast(List[OpenLoop], rank_open_loops(open_loops))
+    return rank_open_loops(open_loops)
 
 
 def _execute_event_action(action, event: Event):

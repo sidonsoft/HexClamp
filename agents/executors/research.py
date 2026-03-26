@@ -64,7 +64,9 @@ def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
                     content = f.read()
                     # Bounded read for summary snippet
                     lines = content.splitlines()[:10]
-                    content_snippet = " / ".join([l.strip() for l in lines if l])
+                    content_snippet = " / ".join(
+                        [line.strip() for line in lines if line]
+                    )
 
                 # Improved heuristic for concrete correction proposal
                 stale_instruction = ""
@@ -97,12 +99,12 @@ def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
                                     return summary, found_files
 
                 if stale_instruction:
-                    finding = f"Identified stale instruction: \"{stale_instruction}\""
+                    finding = f'Identified stale instruction: "{stale_instruction}"'
                     summary = (
                         f"Grounded research in {primary}:\n"
-                        f"1. Finding: Identified stale instruction: \"{stale_instruction}\".\n"
+                        f'1. Finding: Identified stale instruction: "{stale_instruction}".\n'
                         f"2. Evidence: {primary} line contains outdated reference.\n"
-                        f"3. Recommendation: Change \"{stale_instruction}\" to \"{correction}\".\n"
+                        f'3. Recommendation: Change "{stale_instruction}" to "{correction}".\n'
                         f"4. Target File: {primary}\n"
                         f"5. Next Step: Apply the documentation correction."
                     )
@@ -111,7 +113,7 @@ def _find_grounded_evidence(text: str) -> tuple[str, list[str]]:
 
                 # Fallback summary if no stale instruction found in this file
                 if not best_summary:
-                    finding = f"File exists and initial content identifies as: \"{content_snippet[:100]}...\""
+                    finding = f'File exists and initial content identifies as: "{content_snippet[:100]}..."'
                     if "readme" in primary.lower() or "contributing" in primary.lower():
                         next_action = f"Evaluate Documentation in {primary} against actual implementation state."
                     elif primary.endswith(".py"):
@@ -149,7 +151,9 @@ def execute_research_for_event(
         next_step = "Deepen research or prepare execution based on findings"
         blocked_by: list[str] = []
     else:
-        loop_status, next_step, blocked_by, summary = _initial_loop_state(event, "research")
+        loop_status, next_step, blocked_by, summary = _initial_loop_state(
+            event, "research"
+        )
 
     # Combine evidence: event id + found files + metadata to ensure valid count
     evidence = [event.id] + research_evidence
@@ -203,7 +207,9 @@ def execute_research_for_loop(
                 loop.next_step = f"Continue research from identified files: {', '.join(research_evidence[:2])}"
             else:
                 loop.next_step = f"Escalate or specialize execution for: {loop.title}"
-                summary = f"Reviewed research loop '{loop.title}' and refreshed next step."
+                summary = (
+                    f"Reviewed research loop '{loop.title}' and refreshed next step."
+                )
 
     loop.updated_at = now
     loop.evidence.append(action.id)

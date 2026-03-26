@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import List, cast
+from typing import List
 from uuid import uuid4
 
 from agents.store import _parse_datetime
@@ -28,7 +28,7 @@ def _calculate_loop_age(loop: OpenLoop) -> float:
         return 0.0  # Treat as brand new on parse error
     now = datetime.now(timezone.utc)
     hours_since = (now - created).total_seconds() / 3600
-    return cast(float, hours_since)
+    return hours_since
 
 
 def _calculate_time_since_update(loop: OpenLoop) -> float:
@@ -39,7 +39,7 @@ def _calculate_time_since_update(loop: OpenLoop) -> float:
         return float(STALE_THRESHOLD_HOURS) + 1  # Treat as stale on parse error
     now = datetime.now(timezone.utc)
     hours_since = (now - updated).total_seconds() / 3600
-    return cast(float, hours_since)
+    return hours_since
 
 
 def _is_stale(loop: OpenLoop) -> bool:

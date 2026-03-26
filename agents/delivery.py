@@ -158,6 +158,6 @@ class TelegramDeliveryAgent:
             data = response.json()
             if not data.get("ok"):
                 return []
-            return data.get("result", [])
+            return cast(list[dict[Any, Any]], data.get("result", []))
         except requests.exceptions.RequestException:
             return []

@@ -15,6 +15,14 @@ MIN_EVIDENCE_BY_TYPE = {
     "message": 1,
 }
 
+CHECK_PREFIXES = (
+    "agent:",
+    "git:",
+    "quality_gate:",
+    "syntax:",
+    "py_compile:",
+)
+
 
 def _load_policies() -> dict:
     """Load policies.yaml to check required_for."""
@@ -23,6 +31,10 @@ def _load_policies() -> dict:
         with open(policies_path, "r") as f:
             return yaml.safe_load(f) or {}
     return {}
+
+
+def _is_metadata_evidence(item: str) -> bool:
+    return any(item.startswith(prefix) for prefix in CHECK_PREFIXES)
 
 
 def _evidence_file_exists(item: str) -> bool:
@@ -35,8 +47,7 @@ def _evidence_file_exists(item: str) -> bool:
         return False
 
     # Skip non-file evidence markers (agent IDs, git status, quality gate markers)
-    skip_prefixes = ("agent:", "git:", "quality_gate:", "syntax:", "py_compile:")
-    if any(item.startswith(prefix) for prefix in skip_prefixes):
+    if _is_metadata_evidence(item):
         return True  # These are metadata, count as valid evidence
 
     # Issue #10: Task metadata files (pending execution records) don't count as completion evidence
@@ -90,6 +101,7 @@ def _evidence_file_exists(item: str) -> bool:
 
     # Try workspace-relative
     from agents.store import get_workspace_root
+
     workspace = get_workspace_root()
     if _exists_within(workspace):
         return True
@@ -112,15 +124,11 @@ def verify_result(
     evidence = evidence or []
     artifacts = artifacts or []
 
-    # Filter evidence to only items that actually exist as files (for file-based evidence)
-    # Non-file metadata evidence (agent:, git:, etc.) always counts
     def _is_valid_evidence(item: str) -> bool:
         if not item:
             return False
-        skip_prefixes = ("agent:", "git:", "quality_gate:", "syntax:", "py_compile:")
-        if any(item.startswith(p) for p in skip_prefixes):
+        if _is_metadata_evidence(item):
             return True
-        # For path-like items, verify the file exists
         return _evidence_file_exists(item)
 
     valid_evidence = [e for e in evidence if _is_valid_evidence(e)]
@@ -139,15 +147,13 @@ def verify_result(
             e
             for e in evidence
             if not _is_valid_evidence(e)
-            and not any(
-                e.startswith(p)
-                for p in ("agent:", "git:", "quality_gate:", "syntax:", "py_compile:")
-            )
+            and not _is_metadata_evidence(e)
         ]
         if missing_files:
             count_ok = False
 
-    verified = count_ok
+    checklist_passed = _build_checklist_verdict(action, evidence, artifacts)
+    verified = count_ok and checklist_passed["passed"]
 
     result = Result(
         action_id=action.id,
@@ -158,9 +164,68 @@ def verify_result(
         follow_up=(
             []
             if verified
-            else [f"Need at least {minimum} valid evidence item(s) for {action.type}"]
+        else _build_follow_up(action.type, minimum, len(valid_evidence), checklist_passed["missing"])
         ),
         verified=verified,
     )
     validate_payload(result.to_dict(), "result.schema.json")
     return result
+
+
+def _build_checklist_verdict(
+    action: Action, evidence: list[str], artifacts: list[str]
+) -> dict[str, list[str] | bool]:
+    missing: list[str] = []
+    evidence_text = " ".join(evidence).lower()
+
+    if action.type == "research":
+        if not evidence_text:
+            missing.append("claims grounded in evidence")
+        if not any(marker in evidence_text for marker in ("source", "cite", "line")):
+            missing.append("sources cited when available")
+        if "speculation" not in evidence_text and "unsupported" not in evidence_text:
+            missing.append("no unsupported speculation")
+    elif action.type == "code":
+        if not any(
+            marker in evidence_text for marker in ("agent:", "syntax:", "py_compile:")
+        ):
+            missing.append("execution artifacts exist")
+        if not any(marker in evidence_text for marker in ("git:modified", "changed")):
+            missing.append("changed files are present")
+        if not any(marker in evidence_text for marker in ("syntax:", "test", "verify")):
+            missing.append("verification signals include tests or syntax checks")
+    elif action.type == "browser":
+        if not any(Path(item).suffix == ".png" for item in artifacts):
+            missing.append("screenshot artifact exists")
+        if not any(Path(item).suffix == ".txt" for item in artifacts):
+            missing.append("page content artifact exists")
+        if not any(token in evidence_text for token in ("http://", "https://", "url:")):
+            missing.append("navigation target is recorded")
+    elif action.type == "message":
+        if not any(
+            marker in evidence_text
+            for marker in ("recipient", "@", "chat_id", "target_recipient")
+        ):
+            missing.append("recipient is identified")
+        if not evidence_text and not artifacts:
+            missing.append("message content is recorded")
+        if not any(
+            token in evidence_text
+            for token in ("approved", "sent", "delivered", "delivery")
+        ):
+            missing.append("approval or delivery evidence exists when required")
+    else:
+        if not evidence_text:
+            missing.append("claims grounded in evidence")
+
+    return {"passed": not missing, "missing": missing}
+
+
+def _build_follow_up(
+    action_type: str, minimum: int, valid_count: int, checklist_missing: list[str]
+) -> list[str]:
+    follow_up = [f"Need at least {minimum} valid evidence item(s) for {action_type}"]
+    if valid_count < minimum:
+        follow_up.append(f"Only {valid_count} valid evidence item(s) were accepted")
+    follow_up.extend(f"Missing checklist item: {item}" for item in checklist_missing)
+    return follow_up
