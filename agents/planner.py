@@ -170,6 +170,57 @@ def _build_action(
     return action
 
 
+def _loop_contract(loop: OpenLoop) -> tuple[list[str], list[str]]:
+    """Derive a pre-execution contract from the loop's current shape."""
+    title = loop.title.strip() or "open loop"
+    criteria = [
+        f"Produce evidence that advances: {title}",
+        f"Reflect the loop owner '{loop.owner}' in the work output",
+        "Include a concrete next step or a terminal status",
+    ]
+    verification_commands = [
+        "python3 -m agents.loop status",
+    ]
+    if loop.owner == "code":
+        criteria.extend(
+            [
+                "Show changed files or explicit failure evidence",
+                "Include tests, syntax checks, or a quality gate result",
+            ]
+        )
+        verification_commands.extend(
+            [
+                "python3 -m pytest -q",
+                "python3 -m ruff check .",
+            ]
+        )
+    elif loop.owner == "browser":
+        criteria.extend(
+            [
+                "Capture screenshot evidence and page content",
+                "Record the navigation target or page URL",
+            ]
+        )
+        verification_commands.append("python3 -m pytest -q tests/test_browser_executor.py")
+    elif loop.owner == "messaging":
+        criteria.extend(
+            [
+                "Identify the recipient and delivery intent",
+                "Record approval or delivery evidence when required",
+            ]
+        )
+        verification_commands.append("python3 -m pytest -q tests/test_messaging_delivery.py")
+    elif loop.owner == "research":
+        criteria.extend(
+            [
+                "Ground claims in local file evidence",
+                "Cite sources or file references when available",
+            ]
+        )
+        verification_commands.append("python3 -m pytest -q tests/test_planner.py")
+    return criteria, verification_commands
+
+
 def classify_text(text: str) -> str:
     normalized = text.lower()
 
@@ -331,13 +382,14 @@ def _action_for_loop(loop: OpenLoop) -> Action:
         else classify_text(loop.title)
     )
 
+    acceptance_criteria, verification_commands = _loop_contract(loop)
     if action_type == "code":
         return _build_action(
             "code",
             f"Advance code loop: {loop.title}",
             ["current_state", loop.id],
             "code",
-            "The loop gains a concrete code execution step with evidence",
+            "; ".join(acceptance_criteria + verification_commands),
             risk="medium",
         )
     if action_type == "browser":
@@ -346,7 +398,7 @@ def _action_for_loop(loop: OpenLoop) -> Action:
             f"Advance browser loop: {loop.title}",
             ["current_state", loop.id],
             "browser",
-            "The loop gains a browser execution step with visible evidence",
+            "; ".join(acceptance_criteria + verification_commands),
             risk="medium",
         )
     if action_type == "messaging":
@@ -355,7 +407,7 @@ def _action_for_loop(loop: OpenLoop) -> Action:
             f"Advance messaging loop: {loop.title}",
             ["current_state", loop.id],
             "messaging",
-            "The loop gains a draft or approval-gated send step",
+            "; ".join(acceptance_criteria + verification_commands),
             risk="medium",
         )
     return _build_action(
@@ -363,7 +415,7 @@ def _action_for_loop(loop: OpenLoop) -> Action:
         f"Advance research loop: {loop.title}",
         ["current_state", loop.id],
         "research",
-        "The open loop gains a concrete next-step note with evidence or a terminal status",
+        "; ".join(acceptance_criteria + verification_commands),
     )
 
 

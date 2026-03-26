@@ -1,5 +1,5 @@
 # Task
 
-Implement Phase 1 Harness Improvements: Metrics + Enhanced Verifier
+Implement Phase 2: Pre-execution Contracts for Open Loops
 
 Work in: /Users/burnz/Code/HexClamp

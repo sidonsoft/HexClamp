@@ -157,6 +157,8 @@ def save_event_queue(events: List[Event]) -> None:
 def load_open_loops() -> List[OpenLoop]:
     data = read_json(OPEN_LOOPS_PATH, default=[])
     for item in data:
+        item.setdefault("acceptance_criteria", [])
+        item.setdefault("verification_commands", [])
         validate_payload(item, "loop.schema.json")
     return [OpenLoop(**item) for item in data]
 

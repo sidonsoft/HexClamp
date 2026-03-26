@@ -152,8 +152,9 @@ def verify_result(
         if missing_files:
             count_ok = False
 
+    contract_passed = _check_preexecution_contract(action)
     checklist_passed = _build_checklist_verdict(action, evidence, artifacts)
-    verified = count_ok and checklist_passed["passed"]
+    verified = count_ok and contract_passed["passed"] and checklist_passed["passed"]
 
     result = Result(
         action_id=action.id,
@@ -164,7 +165,12 @@ def verify_result(
         follow_up=(
             []
             if verified
-        else _build_follow_up(action.type, minimum, len(valid_evidence), checklist_passed["missing"])
+        else _build_follow_up(
+            action.type,
+            minimum,
+            len(valid_evidence),
+            contract_passed["missing"] + checklist_passed["missing"],
+        )
         ),
         verified=verified,
     )
@@ -217,6 +223,23 @@ def _build_checklist_verdict(
     else:
         if not evidence_text:
             missing.append("claims grounded in evidence")
+
+    return {"passed": not missing, "missing": missing}
+
+
+def _check_preexecution_contract(action: Action) -> dict[str, list[str] | bool]:
+    missing: list[str] = []
+    clauses = [part.strip() for part in action.success_criteria.split(";") if part.strip()]
+    lower = action.success_criteria.lower()
+
+    if len(clauses) < 2:
+        missing.append("pre-execution contract contains multiple concrete clauses")
+    if not any(token in lower for token in ("evidence", "tests", "verification", "artifact", "status")):
+        missing.append("pre-execution contract names evidence or verification")
+    if action.type in {"code", "browser", "messaging"} and not any(
+        token in lower for token in ("command", "pytest", "ruff", "screenshot", "recipient", "approval")
+    ):
+        missing.append("pre-execution contract includes executor-specific checks")
 
     return {"passed": not missing, "missing": missing}
 

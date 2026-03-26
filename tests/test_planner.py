@@ -8,6 +8,7 @@ sys.path.insert(0, str(BASE))
 
 from agents.models import Event, OpenLoop
 from agents.planner import plan_next_actions, rank_open_loops
+from agents.verifier import verify_result
 
 
 class PlannerTests(unittest.TestCase):
@@ -71,6 +72,43 @@ class PlannerTests(unittest.TestCase):
         actions = plan_next_actions([event], [loop])
         self.assertEqual(actions[0].executor, "messaging")
         self.assertIn("evt-1", actions[0].goal)
+
+    def test_plan_next_actions_embeds_pre_execution_contract(self):
+        loop = self._loop("loop-code", priority="high", owner="code")
+        actions = plan_next_actions([], [loop])
+        self.assertGreaterEqual(len(actions[0].success_criteria.split(";")), 2)
+        self.assertIn("evidence", actions[0].success_criteria.lower())
+        self.assertIn("pytest", actions[0].success_criteria.lower())
+
+    def test_verifier_requires_contract_clarity_for_execution_actions(self):
+        loop = self._loop("loop-code", priority="high", owner="code")
+        action = plan_next_actions([], [loop])[0]
+        result = verify_result(
+            action,
+            "summary",
+            evidence=["agent:ok", "git:modified:file.py", "syntax:ok"],
+        )
+        self.assertTrue(result.verified)
+
+    def test_verifier_rejects_vague_contracts(self):
+        from agents.models import Action
+
+        action = Action(
+            id="act-1",
+            type="code",
+            goal="test",
+            inputs=[],
+            executor="code",
+            success_criteria="Do the thing",
+            risk="medium",
+            status="pending",
+        )
+        result = verify_result(
+            action,
+            "summary",
+            evidence=["agent:ok", "git:modified:file.py", "syntax:ok"],
+        )
+        self.assertFalse(result.verified)
 
 
 if __name__ == "__main__":

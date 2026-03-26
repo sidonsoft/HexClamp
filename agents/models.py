@@ -45,6 +45,8 @@ class OpenLoop:
     next_step: str
     blocked_by: List[str] = field(default_factory=list)
     evidence: List[str] = field(default_factory=list)
+    acceptance_criteria: List[str] = field(default_factory=list)
+    verification_commands: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

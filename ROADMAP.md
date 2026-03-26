@@ -20,7 +20,26 @@
 - Partial results: 6
 - Open loops: 5
 
-**Next:** Phase 2 — Pre-execution contracts
+**Next:** Phase 3 — Context reset pattern
+
+---
+
+## Phase 2 Status: ✅ Complete (2026-03-26)
+
+**Delivered:**
+- ✅ `agents/models.py` — OpenLoop dataclass extended with `acceptance_criteria` and `verification_commands` fields
+- ✅ `agents/planner.py` — Updated to generate contracts when ranking loops
+- ✅ `prompts/planner.md` — Updated with contract generation instructions
+- ✅ `schemas/loop.schema.json` — Schema updated to support new fields
+- ✅ All tests passing (56 tests, +3 from Phase 1)
+- ✅ All code linted (ruff check passed)
+
+**Implementation:**
+- OpenLoop now accepts optional `acceptance_criteria: List[str]` and `verification_commands: List[str]`
+- Backward compatible — existing loops without these fields work fine
+- Planner generates contracts based on action type and goal
+
+**Next:** Phase 3 — Context reset pattern
 
 ---
 
