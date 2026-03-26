@@ -20,7 +20,29 @@
 - Partial results: 6
 - Open loops: 5
 
-**Next:** Phase 4 — Metrics dashboard UI
+**Next:** Phase 5 — Verifier learning loop
+
+---
+
+## Phase 4 Status: ✅ Complete (2026-03-26)
+
+**Delivered:**
+- ✅ `scripts/metrics.py` — Enhanced with `--web` flag to serve dashboard over HTTP
+- ✅ Embedded HTML dashboard with CSS styling (no build step required)
+- ✅ Dashboard shows: tasks_completed, verified_results, partial_results, open_loops, queued_events, circuit_breaker_trips
+- ✅ Completion rate and queue pressure metrics added
+- ✅ All tests passing (58 tests, +2 from Phase 3)
+- ✅ All code linted (ruff check passed)
+
+**Implementation:**
+- `format_dashboard_html()` function generates self-contained HTML
+- `--web` flag serves dashboard at http://127.0.0.1:8000
+- Styled with modern dark theme, responsive cards
+- No external dependencies (no Chart.js, no build step)
+
+**Note:** Dashboard uses CSS-based visualization instead of Chart.js for simplicity and zero dependencies.
+
+**Next:** Phase 5 — Verifier learning loop
 
 ---
 
@@ -41,7 +63,29 @@
 - `load_handoff()` and `clear_handoff()` utility functions
 - Backward compatible — existing `condense_state()` still works
 
-**Next:** Phase 4 — Metrics dashboard UI
+**Next:** Phase 5 — Verifier learning loop
+
+---
+
+## Phase 4 Status: ✅ Complete (2026-03-26)
+
+**Delivered:**
+- ✅ `scripts/metrics.py` — Enhanced with `--web` flag to serve dashboard over HTTP
+- ✅ Embedded HTML dashboard with CSS styling (no build step required)
+- ✅ Dashboard shows: tasks_completed, verified_results, partial_results, open_loops, queued_events, circuit_breaker_trips
+- ✅ Completion rate and queue pressure metrics added
+- ✅ All tests passing (58 tests, +2 from Phase 3)
+- ✅ All code linted (ruff check passed)
+
+**Implementation:**
+- `format_dashboard_html()` function generates self-contained HTML
+- `--web` flag serves dashboard at http://127.0.0.1:8000
+- Styled with modern dark theme, responsive cards
+- No external dependencies (no Chart.js, no build step)
+
+**Note:** Dashboard uses CSS-based visualization instead of Chart.js for simplicity and zero dependencies.
+
+**Next:** Phase 5 — Verifier learning loop
 
 ---
 
@@ -60,7 +104,29 @@
 - Backward compatible — existing loops without these fields work fine
 - Planner generates contracts based on action type and goal
 
-**Next:** Phase 4 — Metrics dashboard UI
+**Next:** Phase 5 — Verifier learning loop
+
+---
+
+## Phase 4 Status: ✅ Complete (2026-03-26)
+
+**Delivered:**
+- ✅ `scripts/metrics.py` — Enhanced with `--web` flag to serve dashboard over HTTP
+- ✅ Embedded HTML dashboard with CSS styling (no build step required)
+- ✅ Dashboard shows: tasks_completed, verified_results, partial_results, open_loops, queued_events, circuit_breaker_trips
+- ✅ Completion rate and queue pressure metrics added
+- ✅ All tests passing (58 tests, +2 from Phase 3)
+- ✅ All code linted (ruff check passed)
+
+**Implementation:**
+- `format_dashboard_html()` function generates self-contained HTML
+- `--web` flag serves dashboard at http://127.0.0.1:8000
+- Styled with modern dark theme, responsive cards
+- No external dependencies (no Chart.js, no build step)
+
+**Note:** Dashboard uses CSS-based visualization instead of Chart.js for simplicity and zero dependencies.
+
+**Next:** Phase 5 — Verifier learning loop
 
 ---
 
@@ -81,7 +147,29 @@
 - `load_handoff()` and `clear_handoff()` utility functions
 - Backward compatible — existing `condense_state()` still works
 
-**Next:** Phase 4 — Metrics dashboard UI
+**Next:** Phase 5 — Verifier learning loop
+
+---
+
+## Phase 4 Status: ✅ Complete (2026-03-26)
+
+**Delivered:**
+- ✅ `scripts/metrics.py` — Enhanced with `--web` flag to serve dashboard over HTTP
+- ✅ Embedded HTML dashboard with CSS styling (no build step required)
+- ✅ Dashboard shows: tasks_completed, verified_results, partial_results, open_loops, queued_events, circuit_breaker_trips
+- ✅ Completion rate and queue pressure metrics added
+- ✅ All tests passing (58 tests, +2 from Phase 3)
+- ✅ All code linted (ruff check passed)
+
+**Implementation:**
+- `format_dashboard_html()` function generates self-contained HTML
+- `--web` flag serves dashboard at http://127.0.0.1:8000
+- Styled with modern dark theme, responsive cards
+- No external dependencies (no Chart.js, no build step)
+
+**Note:** Dashboard uses CSS-based visualization instead of Chart.js for simplicity and zero dependencies.
+
+**Next:** Phase 5 — Verifier learning loop
 
 ---
 

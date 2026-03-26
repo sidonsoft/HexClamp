@@ -3,6 +3,7 @@ import json
 import sys
 import tempfile
 import unittest
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
@@ -78,6 +79,73 @@ class MetricsTests(unittest.TestCase):
         self.assertIn("HexClamp Quality Metrics", dashboard)
         self.assertIn("Tasks completed: 3", dashboard)
         self.assertIn("Average loop duration (s): 12.5", dashboard)
+
+    def test_format_dashboard_html_includes_web_ui_sections(self):
+        html = metrics.format_dashboard_html(
+            metrics.Metrics(
+                tasks_completed=3,
+                verified_results=2,
+                partial_results=1,
+                open_loops=4,
+                queued_events=5,
+                circuit_breaker_trips=1,
+                avg_loop_duration_seconds=12.5,
+            )
+        )
+        self.assertIn("<title>HexClamp Metrics Dashboard</title>", html)
+        self.assertIn("Quality Metrics Dashboard", html)
+        self.assertIn("Completion rate", html)
+        self.assertIn("Queue pressure", html)
+
+    def test_dashboard_handler_returns_html(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            state_dir = base / "state"
+            runs_dir = base / "runs"
+            state_dir.mkdir(parents=True)
+            runs_dir.mkdir(parents=True)
+
+            (state_dir / "current_state.json").write_text(
+                json.dumps({"open_loops": []}),
+                encoding="utf-8",
+            )
+            (state_dir / "event_queue.json").write_text(json.dumps([]), encoding="utf-8")
+            (state_dir / "circuit_breaker.json").write_text(
+                json.dumps({"consecutive_errors": 0}),
+                encoding="utf-8",
+            )
+
+            with (
+                patch.object(metrics, "STATE_DIR", state_dir),
+                patch.object(metrics, "RUNS_DIR", runs_dir),
+            ):
+                handler = metrics.create_handler()
+
+                class DummyHandler(handler):
+                    def __init__(self) -> None:
+                        self.path = "/"
+                        self.wfile = BytesIO()
+                        self.headers = {}
+
+                    def send_response(self, code: int, message: str | None = None) -> None:
+                        self.status_code = code
+
+                    def send_header(self, keyword: str, value: str) -> None:
+                        pass
+
+                    def end_headers(self) -> None:
+                        pass
+
+                    def send_error(self, code: int, message: str | None = None) -> None:
+                        self.error_code = code
+
+                request = DummyHandler()
+                request.do_GET()
+                body = request.wfile.getvalue().decode("utf-8")
+
+                self.assertEqual(request.status_code, 200)
+                self.assertIn("HexClamp Metrics Dashboard", body)
+                self.assertIn("Completion rate", body)
 
 
 if __name__ == "__main__":

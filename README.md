@@ -93,6 +93,9 @@ python3 -m agents.loop status
 
 # Run tests
 python3 -m pytest -q
+
+# View the metrics dashboard in your browser
+python3 -m scripts.metrics --web
 ```
 
 ## Telegram Inbound (Polling)
@@ -135,6 +138,7 @@ python3 -m pytest -q
 | `test_messaging_delivery.py` | TelegramDeliveryAgent result handling |
 | `test_planner.py` | Loop ranking and urgency scoring |
 | `test_task_completion.py` | Task artifact verification |
+| `test_metrics.py` | Metrics collection and dashboard rendering |
 
 ## CI
 

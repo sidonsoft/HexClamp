@@ -1,5 +1,5 @@
 # Task
 
-Implement Phase 2: Pre-execution Contracts for Open Loops
+Implement Phase 4: Metrics Dashboard UI with Web Interface
 
 Work in: /Users/burnz/Code/HexClamp
