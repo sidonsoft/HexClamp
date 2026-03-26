@@ -1,6 +1,6 @@
 # HexClamp
 
-**v1.0** — An inspectable autonomous agent loop scaffold.
+**v1.1** — An inspectable autonomous agent loop scaffold with metrics, contracts, context resets, and continuous learning.
 
 HexClamp separates observation, condensation, planning, execution, verification, and persistence into distinct, auditable stages. File-backed state means every decision, every action, and every result survives restarts and is inspectable at any time.
 
@@ -11,6 +11,27 @@ Observe → Condense → Plan → Execute → Verify → Persist
 ```
 
 Each cycle loads current state, generates actions from ranked open loops, executes one action, verifies the result, and persists the updated state. Everything is file-backed — no invisible prompt state.
+
+## Harness Improvements (2026-03-26)
+
+HexClamp recently completed a comprehensive 5-phase harness improvement project, implementing:
+
+| Phase | Feature | Status |
+|-------|---------|--------|
+| **Phase 1** | Metrics + enhanced verifier | ✅ Complete |
+| **Phase 2** | Pre-execution contracts | ✅ Complete |
+| **Phase 3** | Context reset pattern | ✅ Complete |
+| **Phase 4** | Metrics dashboard UI | ✅ Complete |
+| **Phase 5** | Verifier learning loop | ✅ Complete |
+
+**Key capabilities:**
+- 📊 Quality metrics dashboard (terminal + web UI at http://127.0.0.1:8000)
+- ✅ Pre-execution contracts with acceptance criteria
+- 🔄 Explicit context resets with handoff files
+- 🧠 Verifier learns from mistakes and gets smarter
+- 📈 58+ tests passing, all code linted
+
+See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Design principles
 
