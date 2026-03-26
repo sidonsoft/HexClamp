@@ -10,7 +10,7 @@ import yaml
 from pathlib import Path
 
 from agents import store
-from agents.condenser import condense_state
+from agents.condenser import condense_with_handoff, load_handoff, condense_state
 from agents.executors import (
     execute_browser_for_event,
     execute_browser_for_loop,
@@ -413,10 +413,24 @@ def process_once() -> Dict[str, Any]:
     ensure_dirs()
     bootstrap_runtime_state()
 
+    # Load handoff if exists (from previous condensation)
+    handoff = load_handoff()
+    if handoff:
+        # Could log or use handoff context here
+        pass
+
     queued_events = load_event_queue()
     open_loops = load_open_loops()
     previous_state = load_current_state()
-    state = condense_state(queued_events, open_loops, previous_state)
+    
+    # Use new condense_with_handoff that creates handoff when triggers are met
+    state, handoff_created = condense_with_handoff(
+        queued_events, 
+        open_loops, 
+        previous_state,
+        _consecutive_errors
+    )
+    
     actions = plan_next_actions(queued_events, open_loops)
     result = None
     processed_event = None
