@@ -11,6 +11,7 @@ from pathlib import Path
 
 from agents import store
 from agents.condenser import condense_with_handoff, load_handoff, condense_state
+from agents.delivery import TelegramDeliveryAgent
 from agents.executors import (
     execute_browser_for_event,
     execute_browser_for_loop,
@@ -20,6 +21,7 @@ from agents.executors import (
     execute_message_for_loop,
     execute_research_for_event,
     execute_research_for_loop,
+    MESSAGING_TASKS_DIR
 )
 from agents.observer import observe_chat_message
 from agents.store import (
@@ -195,7 +197,6 @@ def queue_event(
 
 def poll_events() -> dict:
     """Poll Telegram for new messages and enqueue them as events."""
-    from agents.delivery import TelegramDeliveryAgent
 
     # Load offset
     state = read_json(POLLING_STATE_PATH, default={"last_offset": None})
@@ -246,7 +247,6 @@ def poll_events() -> dict:
         )
         if approval_match:
             task_id = approval_match.group(1)
-            from agents.executors.messaging import MESSAGING_TASKS_DIR
 
             sentinel_dir = MESSAGING_TASKS_DIR / task_id
             if sentinel_dir.exists():
