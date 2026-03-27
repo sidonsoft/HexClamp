@@ -222,50 +222,32 @@ def _loop_contract(loop: OpenLoop) -> tuple[list[str], list[str]]:
 
 
 def classify_text(text: str) -> str:
-    import re
-    normalized = text.lower().strip()
-    
-    # Split patterns into multi-word vs single-word
-    multi_word_system_patterns = [
+    normalized = text.lower()
+
+    # System/admin control messages (highest priority — check first)
+    system_patterns = [
+        "reload",
+        "restart",
+        "reset",
+        "shutdown",
+        "kill",
+        "abort",
         "pause loop",
+        "halt",
+        "emergency",
+        "circuit breaker",
+        "bootstrap",
+        "init",
+        "reinitialize",
+        "flush",
+        "clear cache",
         "set mode",
         "set state",
         "update config",
         "change policy",
-        "clear cache",
-        "reinitialize",
-        "bootstrap",
-        "emergency",
-        "circuit breaker",
     ]
-    
-    single_word_system_patterns = [
-        "reload", 
-        "restart",
-        "reset",
-        "shutdown", 
-        "kill",
-        "abort",
-        "halt",
-        "flush",
-        "init",
-    ]
-    
-    # Check multi-word patterns first (exact phrase matching)
-    if any(pattern in normalized for pattern in multi_word_system_patterns):
+    if any(token in normalized for token in system_patterns):
         return "system"
-    
-    # Context guard: check if text is short (<=3 words) OR starts with command prefix
-    word_count = len(normalized.split())
-    has_command_prefix = normalized.startswith(('please ', '!', '/', 'hey ', 'bot '))
-    
-    # Only classify as system if context guard passes (short text OR command prefix)
-    if (word_count <= 3 or has_command_prefix):
-        # For single-word patterns, use word boundaries to avoid false positives
-        for pattern in single_word_system_patterns:
-            # Use word boundary regex to match whole words only
-            if re.search(r'\b' + re.escape(pattern) + r'\b', normalized):
-                return "system"
 
     # Specific filename / extension patterns (very strong code signal)
     # Check for .py extension or specific file references
