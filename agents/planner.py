@@ -251,23 +251,14 @@ def classify_text(text: str) -> str:
 
     # Specific filename / extension patterns (very strong code signal)
     # Check for .py extension or specific file references
+    _action_kw = [
+        "edit", "modify", "fix", "create", "update",
+        "add", "remove", "refactor", "debug", "test",
+        "implement", "delete", "move", "rename"
+    ]
     if (
-        ".py" in text
-        or any(ext in text for ext in [".yaml", ".json", ".sh", ".md"])
-        and any(
-            kw in normalized
-            for kw in [
-                "edit",
-                "modify",
-                "fix",
-                "create",
-                "update",
-                "add",
-                "remove",
-                "refactor",
-                "implement",
-            ]
-        )
+        any(ext in text for ext in [".py", ".yaml", ".json", ".sh", ".md"])
+        and any(kw in normalized for kw in _action_kw)
     ):
         return "code"
 

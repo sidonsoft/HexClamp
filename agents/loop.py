@@ -298,6 +298,7 @@ def print_status() -> None:
 
     print(f"\nOpen Loops: {len(state.get('open_loops', []))}")
     loops_data = read_json(OPEN_LOOPS_PATH, default=[])
+    loop_objs: list[OpenLoop] = []
     if loops_data:
         # Rank them to show the top 3 next priorities
         from agents.models import OpenLoop
@@ -424,12 +425,6 @@ def process_once() -> Dict[str, Any]:
     previous_state = load_current_state()
     
     # Use new condense_with_handoff that creates handoff when triggers are met
-    state, handoff_created = condense_with_handoff(
-        queued_events, 
-        open_loops, 
-        previous_state,
-        _consecutive_errors
-    )
     
     actions = plan_next_actions(queued_events, open_loops)
     result = None
@@ -485,6 +480,9 @@ def process_once() -> Dict[str, Any]:
         state.current_actions = []
         open_loops = prune_old_loops(open_loops)
 
+    state = previous_state
+    
+    # Condense state post-execution with updated queue/loops
     state = condense_state(queued_events, open_loops, state)
     save_event_queue(queued_events)
     save_open_loops(open_loops)
