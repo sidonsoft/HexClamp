@@ -412,7 +412,7 @@ def _action_for_loop(loop: OpenLoop) -> Action:
         )
     if action_type == "messaging":
         return _build_action(
-            "message",
+            "messaging",
             f"Advance messaging loop: {loop.title}",
             ["current_state", loop.id],
             "messaging",
