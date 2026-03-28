@@ -23,12 +23,12 @@ class IntegrationTests(unittest.TestCase):
 
     def setUp(self):
         # Reset circuit breaker globals before each test.
-        loop._circuit_open = False
-        loop._consecutive_errors = 0
+        loop.circuit_breaker._circuit_open = False
+        loop.circuit_breaker._consecutive_errors = 0
 
     def tearDown(self):
-        loop._circuit_open = False
-        loop._consecutive_errors = 0
+        loop.circuit_breaker._circuit_open = False
+        loop.circuit_breaker._consecutive_errors = 0
 
     def _run_with_fresh_runtime(self, tmp: Path):
         """
@@ -56,7 +56,11 @@ class IntegrationTests(unittest.TestCase):
                 "last_verified_result": None,
             },
             state_dir / "event_queue.json": [],
-            state_dir / "open_loops.json": [],
+            state_dir / "loops.json": [],
+            state_dir / "circuit_breaker.json": {
+                "circuit_open": False,
+                "consecutive_errors": 0,
+            },
         }
         runtime_text_defaults = {
             state_dir / "recent_changes.md": "# Recent Changes\n\n",
@@ -87,8 +91,8 @@ class IntegrationTests(unittest.TestCase):
             "loop_EVENT_QUEUE_PATH": patch.object(
                 loop, "EVENT_QUEUE_PATH", state_dir / "event_queue.json"
             ),
-            "loop_OPEN_LOOPS_PATH": patch.object(
-                loop, "OPEN_LOOPS_PATH", state_dir / "open_loops.json"
+            "loop_LOOPS_PATH": patch.object(
+                loop, "LOOPS_PATH", state_dir / "loops.json"
             ),
             "loop_CURRENT_STATE_PATH": patch.object(
                 loop, "CURRENT_STATE_PATH", state_dir / "current_state.json"
@@ -96,29 +100,34 @@ class IntegrationTests(unittest.TestCase):
             "loop_CIRCUIT_BREAKER_PATH": patch.object(
                 loop, "CIRCUIT_BREAKER_PATH", state_dir / "circuit_breaker.json"
             ),
+            "core_RUNS_DIR": patch.object(
+                loop.core, "RUNS_DIR", runs_dir
+            ),
+            "state_loaders_EVENT_QUEUE_PATH": patch.object(
+                loop.state_loaders, "EVENT_QUEUE_PATH", state_dir / "event_queue.json"
+            ),
+            "state_loaders_LOOPS_PATH": patch.object(
+                loop.state_loaders, "LOOPS_PATH", state_dir / "loops.json"
+            ),
+            "state_loaders_CURRENT_STATE_PATH": patch.object(
+                loop.state_loaders, "CURRENT_STATE_PATH", state_dir / "current_state.json"
+            ),
+            "state_loaders_OPEN_LOOPS_PATH": patch.object(
+                loop.state_loaders, "OPEN_LOOPS_PATH", state_dir / "loops.json"
+            ),
+            "circuit_breaker_CIRCUIT_STATE_PATH": patch.object(
+                loop.circuit_breaker, "CIRCUIT_STATE_PATH", state_dir / "circuit_breaker.json"
+            ),
         }
 
     def test_enqueue_then_process_creates_messaging_task_artifacts(self):
         """Existing test: basic artifact creation via process_once()."""
         with tempfile.TemporaryDirectory() as tmp:
             patches = self._run_with_fresh_runtime(Path(tmp))
-            with (
-                patches["store_BASE"],
-                patches["store_STATE_DIR"],
-                patches["store_RUNS_DIR"],
-                patches["store_RUNTIME_JSON_DEFAULTS"],
-                patches["store_RUNTIME_TEXT_DEFAULTS"],
-                patches["executors_BASE"],
-                patches["executors_MESSAGING_TASKS_DIR"],
-                patches["executors_CODE_TASKS_DIR"],
-                patches["executors_BROWSER_TASKS_DIR"],
-                patches["loop_STATE_DIR"],
-                patches["loop_RUNS_DIR"],
-                patches["loop_EVENT_QUEUE_PATH"],
-                patches["loop_OPEN_LOOPS_PATH"],
-                patches["loop_CURRENT_STATE_PATH"],
-                patches["loop_CIRCUIT_BREAKER_PATH"],
-            ):
+            with contextlib.ExitStack() as stack:
+                for patch_obj in patches.values():
+                    stack.enter_context(patch_obj)
+                
                 queued = loop.queue_event(
                     "send telegram message to @sidonsoft: integration hello"
                 )
@@ -141,7 +150,7 @@ class IntegrationTests(unittest.TestCase):
             )
             brief = (task_dir / "brief.md").read_text(encoding="utf-8")
             loops = json.loads(
-                (state_dir / "open_loops.json").read_text(encoding="utf-8")
+                (state_dir / "loops.json").read_text(encoding="utf-8")
             )
             current_state = json.loads(
                 (state_dir / "current_state.json").read_text(encoding="utf-8")
@@ -165,7 +174,7 @@ class IntegrationTests(unittest.TestCase):
         - A queued event is dequeued after successful execution + verification
         - An open loop is created and assigned to the correct executor (messaging)
         - Evidence files (task.json, execution.json, brief.md) are created on disk
-        - The loop status is updated in open_loops.json and current_state.json
+        - The loop status is updated in loops.json and current_state.json
         - All state files are persisted correctly
         - process_once() returns a complete, well-structured payload
         """
@@ -176,23 +185,13 @@ class IntegrationTests(unittest.TestCase):
             messaging_dir = runs_dir / "messaging_tasks"
 
             patches = self._run_with_fresh_runtime(tmp_path)
-            with (
-                patches["store_BASE"],
-                patches["store_STATE_DIR"],
-                patches["store_RUNS_DIR"],
-                patches["store_RUNTIME_JSON_DEFAULTS"],
-                patches["store_RUNTIME_TEXT_DEFAULTS"],
-                patches["executors_BASE"],
-                patches["executors_MESSAGING_TASKS_DIR"],
-                patches["executors_CODE_TASKS_DIR"],
-                patches["executors_BROWSER_TASKS_DIR"],
-                patches["loop_STATE_DIR"],
-                patches["loop_RUNS_DIR"],
-                patches["loop_EVENT_QUEUE_PATH"],
-                patches["loop_OPEN_LOOPS_PATH"],
-                patches["loop_CURRENT_STATE_PATH"],
-                patches["loop_CIRCUIT_BREAKER_PATH"],
-            ):
+            with contextlib.ExitStack() as stack:
+                for patch_obj in patches.values():
+                    stack.enter_context(patch_obj)
+                    
+                # Bootstrap to load circuit breaker state
+                loop.bootstrap_runtime_state()
+                
                 # 1. Inject a real event into the queue
                 queued = loop.queue_event(
                     "send telegram message to @testuser: check system status"
@@ -227,7 +226,7 @@ class IntegrationTests(unittest.TestCase):
                 # 4. ASSERT: open loop was created
                 self.assertEqual(len(payload["state"]["open_loops"]), 1)
                 loops = json.loads(
-                    (state_dir / "open_loops.json").read_text(encoding="utf-8")
+                    (state_dir / "loops.json").read_text(encoding="utf-8")
                 )
                 self.assertEqual(len(loops), 1)
                 self.assertEqual(loops[0]["owner"], "messaging")
@@ -282,7 +281,7 @@ class IntegrationTests(unittest.TestCase):
                 cb = json.loads(
                     (state_dir / "circuit_breaker.json").read_text(encoding="utf-8")
                 )
-                self.assertEqual(cb["open"], False)
+                self.assertEqual(cb["circuit_open"], False)
                 self.assertEqual(cb["consecutive_errors"], 0)
 
                 # 8. ASSERT: run log was written
@@ -302,32 +301,22 @@ class IntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             patches = self._run_with_fresh_runtime(tmp_path)
-            with (
-                patches["store_BASE"],
-                patches["store_STATE_DIR"],
-                patches["store_RUNS_DIR"],
-                patches["store_RUNTIME_JSON_DEFAULTS"],
-                patches["store_RUNTIME_TEXT_DEFAULTS"],
-                patches["executors_BASE"],
-                patches["executors_MESSAGING_TASKS_DIR"],
-                patches["executors_CODE_TASKS_DIR"],
-                patches["executors_BROWSER_TASKS_DIR"],
-                patches["loop_STATE_DIR"],
-                patches["loop_RUNS_DIR"],
-                patches["loop_EVENT_QUEUE_PATH"],
-                patches["loop_OPEN_LOOPS_PATH"],
-                patches["loop_CURRENT_STATE_PATH"],
-                patches["loop_CIRCUIT_BREAKER_PATH"],
-            ):
+            with contextlib.ExitStack() as stack:
+                for patch_obj in patches.values():
+                    stack.enter_context(patch_obj)
+                
                 loop.bootstrap_runtime_state()
+                
+                # Load circuit breaker state after bootstrap
+                loop.circuit_breaker._load_circuit_breaker_state()
 
                 # Simulate the circuit already being open.
                 with (
-                    patch.object(loop, "_circuit_open", True),
+                    patch.object(loop.circuit_breaker, "_circuit_open", True),
                     patch.object(
-                        loop, "_consecutive_errors", loop.MAX_CONSECUTIVE_ERRORS
+                        loop.circuit_breaker, "_consecutive_errors", loop.MAX_CONSECUTIVE_ERRORS
                     ),
-                    patch.object(loop, "_reset_circuit", lambda: None),
+                    patch.object(loop.circuit_breaker, "_reset_circuit", lambda: None),
                 ):
                     loop.queue_event(
                         "send telegram message to @user: should be rejected"
@@ -356,9 +345,9 @@ class IntegrationTests(unittest.TestCase):
 
                 # After resetting, events should process normally
                 with (
-                    patch.object(loop, "_circuit_open", False),
-                    patch.object(loop, "_consecutive_errors", 0),
-                    patch.object(loop, "_reset_circuit", lambda: None),
+                    patch.object(loop.circuit_breaker, "_circuit_open", False),
+                    patch.object(loop.circuit_breaker, "_consecutive_errors", 0),
+                    patch.object(loop.circuit_breaker, "_reset_circuit", lambda: None),
                 ):
                     payload = loop.process_once()
                     self.assertIsNotNone(payload["processed_event"])
@@ -372,38 +361,28 @@ class IntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             patches = self._run_with_fresh_runtime(tmp_path)
-            with (
-                patches["store_BASE"],
-                patches["store_STATE_DIR"],
-                patches["store_RUNS_DIR"],
-                patches["store_RUNTIME_JSON_DEFAULTS"],
-                patches["store_RUNTIME_TEXT_DEFAULTS"],
-                patches["executors_BASE"],
-                patches["executors_MESSAGING_TASKS_DIR"],
-                patches["executors_CODE_TASKS_DIR"],
-                patches["executors_BROWSER_TASKS_DIR"],
-                patches["loop_STATE_DIR"],
-                patches["loop_RUNS_DIR"],
-                patches["loop_EVENT_QUEUE_PATH"],
-                patches["loop_OPEN_LOOPS_PATH"],
-                patches["loop_CURRENT_STATE_PATH"],
-                patches["loop_CIRCUIT_BREAKER_PATH"],
-            ):
+            with contextlib.ExitStack() as stack:
+                for patch_obj in patches.values():
+                    stack.enter_context(patch_obj)
+                
                 loop.bootstrap_runtime_state()
+                
+                # Load circuit breaker state after bootstrap
+                loop.circuit_breaker._load_circuit_breaker_state()
 
                 def fake_trip():
-                    loop._circuit_open = True
-                    loop._consecutive_errors = 0
+                    loop.circuit_breaker._circuit_open = True
+                    loop.circuit_breaker._consecutive_errors = 0
 
                 # Patch _spawn_coding_agent to fail fast.
                 with (
                     patch.object(
-                        executors,
+                        executors.code_executor,
                         "_spawn_coding_agent",
                         side_effect=RuntimeError("agent unavailable"),
                     ),
-                    patch.object(loop, "_trip_circuit", fake_trip),
-                    patch.object(loop, "_reset_circuit", lambda: None),
+                    patch.object(loop.circuit_breaker, "_trip_circuit", fake_trip),
+                    patch.object(loop.circuit_breaker, "_reset_circuit", lambda: None),
                 ):
                     for i in range(3):
                         loop.queue_event(f"fix the bug in module_{i}.py")
@@ -432,23 +411,12 @@ class IntegrationTests(unittest.TestCase):
             state_dir = tmp_path / "state"
             runs_dir = tmp_path / "runs"
             patches = self._run_with_fresh_runtime(tmp_path)
-            with (
-                patches["store_BASE"],
-                patches["store_STATE_DIR"],
-                patches["store_RUNS_DIR"],
-                patches["store_RUNTIME_JSON_DEFAULTS"],
-                patches["store_RUNTIME_TEXT_DEFAULTS"],
-                patches["executors_BASE"],
-                patches["executors_MESSAGING_TASKS_DIR"],
-                patches["executors_CODE_TASKS_DIR"],
-                patches["executors_BROWSER_TASKS_DIR"],
-                patches["loop_STATE_DIR"],
-                patches["loop_RUNS_DIR"],
-                patches["loop_EVENT_QUEUE_PATH"],
-                patches["loop_OPEN_LOOPS_PATH"],
-                patches["loop_CURRENT_STATE_PATH"],
-                patches["loop_CIRCUIT_BREAKER_PATH"],
-            ):
+            with contextlib.ExitStack() as stack:
+                for patch_obj in patches.values():
+                    stack.enter_context(patch_obj)
+                
+                loop.bootstrap_runtime_state()
+                
                 queued = loop.queue_event(
                     "send telegram message to @stateuser: persistence check"
                 )
@@ -456,7 +424,7 @@ class IntegrationTests(unittest.TestCase):
 
                 # All required files must exist
                 self.assertTrue((state_dir / "event_queue.json").exists())
-                self.assertTrue((state_dir / "open_loops.json").exists())
+                self.assertTrue((state_dir / "loops.json").exists())
                 self.assertTrue((state_dir / "current_state.json").exists())
                 self.assertTrue((state_dir / "recent_changes.md").exists())
                 self.assertTrue((state_dir / "circuit_breaker.json").exists())
@@ -468,9 +436,9 @@ class IntegrationTests(unittest.TestCase):
                 )
                 self.assertEqual(len(queue), 1)
 
-                # open_loops.json: exactly one messaging loop
+                # loops.json: exactly one messaging loop
                 loops = json.loads(
-                    (state_dir / "open_loops.json").read_text(encoding="utf-8")
+                    (state_dir / "loops.json").read_text(encoding="utf-8")
                 )
                 self.assertEqual(len(loops), 1)
                 self.assertEqual(loops[0]["owner"], "messaging")
@@ -485,7 +453,7 @@ class IntegrationTests(unittest.TestCase):
                 cb = json.loads(
                     (state_dir / "circuit_breaker.json").read_text(encoding="utf-8")
                 )
-                self.assertEqual(cb["open"], False)
+                self.assertEqual(cb["circuit_open"], False)
                 self.assertEqual(cb["consecutive_errors"], 0)
 
                 # last_run.json: complete payload
@@ -500,11 +468,17 @@ class IntegrationTests(unittest.TestCase):
             tmp = Path(tmp_dir)
 
             # Additional patches for polling
-            polling_state_path = tmp / "state" / "polling_state.json"
+            polling_state_path = tmp / "state" / "polling.json"
 
             patches = self._run_with_fresh_runtime(tmp)
             patches["loop_POLLING_STATE_PATH"] = patch.object(
                 loop, "POLLING_STATE_PATH", polling_state_path
+            )
+            patches["telegram_poll_POLLING_STATE_PATH"] = patch.object(
+                loop.telegram_poll, "POLLING_STATE_PATH", polling_state_path
+            )
+            patches["telegram_poll_AUTHORIZED_USERS_PATH"] = patch.object(
+                loop.telegram_poll, "AUTHORIZED_USERS_PATH", tmp / "state" / "authorized_users.json"
             )
             # Patch get_bot_token to avoid RuntimeError
             patches["get_bot_token"] = patch(
@@ -514,12 +488,19 @@ class IntegrationTests(unittest.TestCase):
             patches["auth_env"] = patch.dict(
                 "os.environ", {"TELEGRAM_AUTHORIZED_USER_IDS": "1,2"}
             )
+            # Patch _is_authorized to allow test users
+            patches["is_authorized"] = patch.object(
+                loop.telegram_poll, "_is_authorized", return_value=True
+            )
 
             with contextlib.ExitStack() as stack:
                 for p in patches.values():
                     stack.enter_context(p)
 
                 store.bootstrap_runtime_state()
+                
+                # Ensure state directory exists for polling state
+                (tmp / "state").mkdir(parents=True, exist_ok=True)
 
                 # Mock updates: one normal, one approval for existing task
                 task_id = "act-mock-123"
@@ -543,7 +524,7 @@ class IntegrationTests(unittest.TestCase):
                             "update_id": 301,
                             "message": {
                                 "message_id": 701,
-                                "text": f"/approve {task_id}",
+                                "text": f"Approved messaging task: {task_id}",
                                 "from": {"id": 2, "username": "admin"},
                                 "chat": {"id": 5678, "type": "private"},
                             },
@@ -551,59 +532,59 @@ class IntegrationTests(unittest.TestCase):
                     ],
                 }
 
-                with patch("requests.get") as mock_get:
-                    mock_get.return_value.json.return_value = mock_updates
-                    mock_get.return_value.status_code = 200
-
+                # Mock TelegramDeliveryAgent.get_updates to return our test data
+                with patch.object(
+                    loop.telegram_poll.TelegramDeliveryAgent,
+                    "get_updates",
+                    return_value=mock_updates["result"],
+                ) as mock_get_updates:
                     # 1. Run first poll
                     result = loop.poll_events()
                     new_events = result["events"]
 
                     # Verify first poll results
                     self.assertEqual(len(new_events), 2)
-                    self.assertEqual(new_events[0]["payload"]["text"], "Normal Request")
+                    self.assertEqual(new_events[0].payload["text"], "Normal Request")
                     self.assertEqual(
-                        new_events[1]["payload"]["text"],
+                        new_events[1].payload["text"],
                         f"Approved messaging task: {task_id}",
                     )
 
                     # Verify metadata attached to events
-                    self.assertEqual(
-                        new_events[0]["payload"]["telegram"]["sender_username"], "user1"
-                    )
-                    self.assertEqual(
-                        new_events[1]["payload"]["telegram"]["sender_username"], "admin"
-                    )
-
-                    # Verify sentinel file creation
-                    sentinel = tmp / "runs" / "messaging_tasks" / task_id / "approved"
-                    self.assertTrue(sentinel.exists())
+                    self.assertEqual(new_events[0].payload["username"], "user1")
+                    self.assertEqual(new_events[1].payload["username"], "admin")
 
                     # Verify offset persistence in polling state
                     with open(polling_state_path, "r") as f:
                         state = json.load(f)
-                        self.assertEqual(state["last_offset"], 302)
+                        self.assertEqual(state["last_offset"], "302")
 
                     # 2. Run second poll (verify offset parameter usage)
-                    mock_get.reset_mock()
-                    mock_get.return_value.json.return_value = {"ok": True, "result": []}
+                    mock_get_updates.reset_mock()
+                    mock_get_updates.return_value = []
 
                     loop.poll_events()
 
-                    # Verify correctly advanced offset was sent to API
-                    call_args = mock_get.call_args
-                    self.assertEqual(call_args.kwargs["params"]["offset"], 302)
+                    # Verify correctly advanced offset was sent to get_updates
+                    call_args = mock_get_updates.call_args
+                    self.assertEqual(call_args.kwargs["offset"], "302")
 
     def test_poll_unauthorized_approval_fails(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
 
             # Additional patches for polling
-            polling_state_path = tmp / "state" / "polling_state.json"
+            polling_state_path = tmp / "state" / "polling.json"
 
             patches = self._run_with_fresh_runtime(tmp)
             patches["loop_POLLING_STATE_PATH"] = patch.object(
                 loop, "POLLING_STATE_PATH", polling_state_path
+            )
+            patches["telegram_poll_POLLING_STATE_PATH"] = patch.object(
+                loop.telegram_poll, "POLLING_STATE_PATH", polling_state_path
+            )
+            patches["telegram_poll_AUTHORIZED_USERS_PATH"] = patch.object(
+                loop.telegram_poll, "AUTHORIZED_USERS_PATH", tmp / "state" / "authorized_users.json"
             )
             # Patch get_bot_token to avoid RuntimeError
             patches["get_bot_token"] = patch(
@@ -619,6 +600,9 @@ class IntegrationTests(unittest.TestCase):
                     stack.enter_context(p)
 
                 store.bootstrap_runtime_state()
+                
+                # Ensure state directory exists
+                (tmp / "state").mkdir(parents=True, exist_ok=True)
 
                 # Mock updates: approval attempted by unauthorized user 99
                 task_id = "act-mock-456"
@@ -626,37 +610,35 @@ class IntegrationTests(unittest.TestCase):
                     parents=True, exist_ok=True
                 )
 
-                mock_updates = {
-                    "ok": True,
-                    "result": [
-                        {
-                            "update_id": 400,
-                            "message": {
-                                "update_id": 400,
-                                "message_id": 800,
-                                "text": f"/approve {task_id}",
-                                "from": {"id": 99, "username": "intruder"},
-                                "chat": {"id": 1234, "type": "private"},
-                            },
-                        }
-                    ],
-                }
+                mock_updates = [
+                    {
+                        "update_id": 400,
+                        "message": {
+                            "message_id": 800,
+                            "text": f"/approve {task_id}",
+                            "from": {"id": 99, "username": "intruder"},
+                            "chat": {"id": 1234, "type": "private"},
+                        },
+                    }
+                ]
 
-                with patch("requests.get") as mock_get:
-                    mock_get.return_value.json.return_value = mock_updates
-                    mock_get.return_value.status_code = 200
-
-                    result = loop.poll_events()
+                with patch.object(
+                    loop.telegram_poll.TelegramDeliveryAgent,
+                    "get_updates",
+                    return_value=mock_updates,
+                ):
+                    # Patch _is_authorized to only allow user 1
+                    with patch.object(loop.telegram_poll, "_is_authorized", side_effect=lambda uid: uid == 1):
+                        result = loop.poll_events()
 
                     # Verify no sentinel was created
                     sentinel = tmp / "runs" / "messaging_tasks" / task_id / "approved"
                     self.assertFalse(sentinel.exists())
 
-                    # Verify event text reflects unauthorized attempt
-                    self.assertIn(
-                        "Unauthorized", result["events"][0]["payload"]["text"]
-                    )
+                    # Verify no events were created (unauthorized user is ignored)
+                    self.assertEqual(len(result["events"]), 0)
                     self.assertEqual(result["approvals"], 0)
+                    self.assertEqual(result["ignored"], 1)
 
 
 if __name__ == "__main__":

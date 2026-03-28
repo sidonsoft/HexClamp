@@ -53,7 +53,7 @@ def poll_events() -> Dict[str, Any]:
             ignored += 1
             continue
         update_id: int = raw_id
-        if max_update_id and update_id >= max_update_id:
+        if update_id >= max_update_id:
             max_update_id = update_id + 1
 
         message = update.get("message")
