@@ -339,7 +339,7 @@ def classify_text(text: str) -> str:
         "discord message",
     ]
     if any(token in normalized for token in messaging_patterns):
-        return "message"
+        return "messaging"
 
     return "research"
 
@@ -366,9 +366,9 @@ def _action_for_event(event: Event) -> Action:
             "A browser-oriented next step is recorded with visible-state evidence",
             risk="medium",
         )
-    if action_type == "message":
+    if action_type == "messaging":
         return _build_action(
-            "message",
+            "messaging",
             f"Prepare a messaging execution brief for event {event.id}",
             ["current_state", event.id],
             "messaging",

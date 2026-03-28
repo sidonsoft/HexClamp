@@ -5,7 +5,7 @@
   "required": ["id", "type", "goal", "inputs", "executor", "success_criteria", "risk", "status"],
   "properties": {
     "id": { "type": "string" },
-    "type": { "type": "string", "enum": ["research", "code", "browser", "message", "wait"] },
+    "type": { "type": "string", "enum": ["research", "code", "browser", "messaging", "wait"] },
     "goal": { "type": "string" },
     "inputs": {
       "type": "array",

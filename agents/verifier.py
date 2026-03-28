@@ -9,13 +9,14 @@ import yaml
 from agents.models import Action, Result
 from agents.store import STATE_DIR, read_json, write_json
 from agents.validate import validate_payload
+from agents.executors.base import _load_policies  # Import from single source of truth
 
 
 MIN_EVIDENCE_BY_TYPE = {
     "research": 1,
     "code": 2,
     "browser": 2,
-    "message": 1,
+    "messaging": 1,
 }
 
 VERIFIER_LEARNING_THRESHOLD = 2
@@ -27,15 +28,6 @@ CHECK_PREFIXES = (
     "syntax:",
     "py_compile:",
 )
-
-
-def _load_policies() -> dict:
-    """Load policies.yaml to check required_for."""
-    policies_path = Path(__file__).parent.parent / "config" / "policies.yaml"
-    if policies_path.exists():
-        with open(policies_path, "r") as f:
-            return yaml.safe_load(f) or {}
-    return {}
 
 
 def _default_learning_state() -> dict[str, Any]:
@@ -247,7 +239,7 @@ def _build_checklist_verdict(
             missing.append("page content artifact exists")
         if not any(token in evidence_text for token in ("http://", "https://", "url:")):
             missing.append("navigation target is recorded")
-    elif action.type == "message":
+    elif action.type == "messaging":
         if not any(
             marker in evidence_text
             for marker in ("recipient", "@", "chat_id", "target_recipient")
