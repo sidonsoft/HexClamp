@@ -10,8 +10,6 @@ from agents.validate import validate_payload
 
 
 CONDENSATION_TRIGGERS = {
-    "context_tokens": 0.5,  # Condense at 50% context window
-    "loop_count": 10,       # Condense after 10 loops
     "event_count": 20,      # Condense after 20 events
     "error_detected": True, # Force condense on errors
 }
@@ -35,8 +33,6 @@ def should_condense(
     if consecutive_errors > 0 and CONDENSATION_TRIGGERS["error_detected"]:
         return True
     
-    # Note: context_tokens and loop_count require additional state tracking
-    # For now, we trigger on event_count and errors
     return False
 
 
