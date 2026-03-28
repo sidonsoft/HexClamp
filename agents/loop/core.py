@@ -196,15 +196,15 @@ def process_once() -> Dict[str, Any]:
         if hasattr(r, 'to_dict'):
             return r.to_dict()
         if isinstance(r, tuple):
-            # Convert tuple to dict (for legacy executor returns)
-            # Tuple format: (message, event_ids, action_ids, file_paths, open_loop)
+            # Convert tuple to dict (for executor returns)
+            # Tuple format: (summary, evidence, artifacts, open_loop)
             result_dict = {
                 "message": str(r[0]) if len(r) > 0 else None,
                 "verified": False,  # Messaging tasks require approval
                 "status": "partial",  # Pending approval
             }
-            if len(r) > 4 and hasattr(r[4], 'to_dict'):
-                result_dict["open_loop"] = r[4].to_dict()
+            if len(r) > 3 and hasattr(r[3], 'to_dict'):
+                result_dict["open_loop"] = r[3].to_dict()
             return result_dict
         return {"result": str(r), "verified": False, "status": "partial"}
     
