@@ -1,544 +1,109 @@
-from __future__ import annotations
+"""HexClamp agent loop - backward compatibility wrapper.
 
-import json
-import re
-import sys
-from datetime import datetime, timezone
-from typing import Any, Dict, List, cast
+This module now re-exports from the decomposed agents.loop package.
+Original monolithic implementation split into:
+    - circuit_breaker.py
+    - config_loader.py
+    - state_loaders.py
+    - telegram_poll.py
+    - status_display.py
+    - loop_ops.py
+    - executor_dispatch.py
+    - core.py
 
-import yaml
-from pathlib import Path
+For new code, import directly from agents.loop:
+    from agents.loop import process_once, poll_events, ...
+"""
 
-from agents import store
-from agents.condenser import condense_with_handoff, load_handoff, condense_state
-from agents.delivery import TelegramDeliveryAgent
-from agents.executors import (
-    execute_browser_for_event,
-    execute_browser_for_loop,
-    execute_code_for_event,
-    execute_code_for_loop,
-    execute_message_for_event,
-    execute_message_for_loop,
-    execute_research_for_event,
-    execute_research_for_loop,
-    MESSAGING_TASKS_DIR
+# Re-export all public API from decomposed package
+from agents.loop import (
+    process_once,
+    poll_events,
+    print_status,
+    queue_event,
+    is_circuit_open,
+    get_circuit_state,
+    MAX_CONSECUTIVE_ERRORS,
+    load_config,
+    executor_enabled,
+    get_executor_config,
+    load_current_state,
+    save_current_state,
+    load_event_queue,
+    save_event_queue,
+    append_to_event_queue,
+    load_loops,
+    save_loops,
+    append_to_loops,
+    replace_or_append_loop,
+    is_stale,
+    prune_old_loops,
+    get_active_loops,
+    create_loop,
+    EVENT_QUEUE_PATH,
+    LOOPS_PATH,
+    CURRENT_STATE_PATH,
+    CIRCUIT_STATE_PATH,
+    POLLING_STATE_PATH,
+    OPEN_LOOPS_PATH,
+    CIRCUIT_BREAKER_PATH,
+    AUTHORIZED_USERS_PATH,
 )
-from agents.observer import observe_chat_message
-from agents.store import (
-    RUNS_DIR,
-    STATE_DIR,
-    append_json_array,
-    bootstrap_runtime_state,
-    ensure_dirs,
-    get_workspace_root,
-    read_json,
-    write_json,
+
+# Backward compatibility: re-export circuit breaker state variables
+from agents.loop.circuit_breaker import (
+    _circuit_open,
+    _consecutive_errors,
 )
 
-WORKSPACE_ROOT = get_workspace_root()
-from agents.models import CurrentState, Event, OpenLoop
+# Backward compatibility: re-export from store
+from agents.store import bootstrap_runtime_state, STATE_DIR, RUNS_DIR
 
-MAX_CONSECUTIVE_ERRORS = 3
-_circuit_open = False
-_consecutive_errors = 0
-
-CIRCUIT_BREAKER_PATH = STATE_DIR / "circuit_breaker.json"
-
-
-def _load_circuit_breaker_state() -> None:
-    """Load circuit breaker state from disk, if available."""
-    global _circuit_open, _consecutive_errors
-    try:
-        data = read_json(CIRCUIT_BREAKER_PATH, default=None)
-        if data is not None:
-            _circuit_open = bool(data.get("open", False))
-            _consecutive_errors = int(data.get("consecutive_errors", 0))
-    except Exception:
-        pass  # Ignore corrupt state files; start fresh
-
-
-def _persist_circuit_breaker_state() -> None:
-    """Persist circuit breaker state to disk."""
-    write_json(
-        CIRCUIT_BREAKER_PATH,
-        {"open": _circuit_open, "consecutive_errors": _consecutive_errors},
-    )
-
-
-from agents.store import _parse_datetime
-from agents.planner import plan_next_actions, rank_open_loops, STALE_THRESHOLD_HOURS
-from agents.validate import validate_payload
-from agents.verifier import verify_result
-
-
-EVENT_QUEUE_PATH = STATE_DIR / "event_queue.json"
-OPEN_LOOPS_PATH = STATE_DIR / "open_loops.json"
-CURRENT_STATE_PATH = STATE_DIR / "current_state.json"
-POLLING_STATE_PATH = STATE_DIR / "polling_state.json"
-
-
-def _load_yaml(path: Path) -> dict:
-    if not path.exists():
-        return {}
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
-
-
-def _executor_enabled(executor: str) -> bool:
-    if executor == "system":
-        return False  # system executor is not supported
-    enabled = True
-    for config_path in (
-        store.BASE / "config" / "agents.yaml",
-        store.BASE / "config" / "policies.yaml",
-    ):
-        try:
-            data = _load_yaml(config_path)
-        except Exception:
-            import warnings
-
-            warnings.warn(f"Could not read {config_path}; ignoring", RuntimeWarning)
-            continue
-        value = data.get("executors", {}).get(executor, {}).get("enabled")
-        if value is not None:
-            enabled = enabled and bool(value)
-    return enabled
-
-
-def _reset_circuit():
-    global _circuit_open, _consecutive_errors
-    _circuit_open = False
-    _consecutive_errors = 0
-    _persist_circuit_breaker_state()
-
-
-def _trip_circuit():
-    global _circuit_open, _consecutive_errors
-    _circuit_open = True
-    _consecutive_errors = 0
-    _persist_circuit_breaker_state()
-
-
-def prune_old_loops(open_loops: List[OpenLoop]) -> List[OpenLoop]:
-    """Remove loops older than STALE_THRESHOLD_HOURS from open_loops."""
-    return [loop for loop in open_loops if not _is_loop_stale(loop)]
-
-
-def _is_loop_stale(loop: OpenLoop) -> bool:
-    """Check if loop is stale based on time since creation."""
-    try:
-        updated = _parse_datetime(loop.updated_at)
-    except ValueError:
-        # Invalid timestamp = treat as stale so it gets pruned
-        return True
-    now = datetime.now(timezone.utc)
-    hours_since = (now - updated).total_seconds() / 3600
-    return bool(hours_since > STALE_THRESHOLD_HOURS)
-
-
-def load_current_state() -> CurrentState:
-    data = read_json(CURRENT_STATE_PATH)
-    if not data:
-        return CurrentState(goal="Keep hexclamp coherent and progressing")
-    return CurrentState(**data)
-
-
-def load_event_queue() -> List[Event]:
-    data = read_json(EVENT_QUEUE_PATH, default=[])
-    for item in data:
-        validate_payload(item, "event.schema.json")
-    return [Event(**item) for item in data]
-
-
-def save_event_queue(events: List[Event]) -> None:
-    payload = [event.to_dict() for event in events]
-    validate_payload(payload, "event-queue.schema.json")
-    write_json(EVENT_QUEUE_PATH, payload)
-
-
-def load_open_loops() -> List[OpenLoop]:
-    data = read_json(OPEN_LOOPS_PATH, default=[])
-    for item in data:
-        item.setdefault("acceptance_criteria", [])
-        item.setdefault("verification_commands", [])
-        validate_payload(item, "loop.schema.json")
-    return [OpenLoop(**item) for item in data]
-
-
-def save_open_loops(open_loops: List[OpenLoop]) -> None:
-    payload = [loop.to_dict() for loop in open_loops]
-    validate_payload(payload, "open-loops.schema.json")
-    write_json(OPEN_LOOPS_PATH, payload)
-
-
-# Flag to track if we've warned about missing env var
-_auth_warning_shown = False
-
-
-def _is_authorized(sender_id: int | None) -> bool:
-    """Check if a Telegram sender ID is authorized to perform administrative actions."""
-    import os
-    import warnings
-
-    global _auth_warning_shown
-
-    if not sender_id:
-        return False
-    auth_env = os.environ.get("TELEGRAM_AUTHORIZED_USER_IDS", "")
-    if not auth_env:
-        if not _auth_warning_shown:
-            warnings.warn(
-                "TELEGRAM_AUTHORIZED_USER_IDS environment variable is not set. "
-                "All Telegram approvals will be rejected.",
-                RuntimeWarning,
-                stacklevel=2
-            )
-            _auth_warning_shown = True
-        return False
-    try:
-        authorized_ids = [int(i.strip()) for i in auth_env.split(",") if i.strip()]
-        return sender_id in authorized_ids
-    except ValueError:
-        return False
-
-
-def queue_event(
-    text: str, priority: str = "normal", metadata: dict | None = None
-) -> Event:
+# For backward compatibility, also expose queue_event from state_loaders
+def queue_event(text: str, priority: str = "normal", metadata: dict | None = None):
+    """Queue a chat message as an event."""
+    from agents.observer import observe_chat_message
+    from agents.loop.state_loaders import append_to_event_queue
     event = observe_chat_message(text, priority=priority, metadata=metadata)
-    append_json_array(EVENT_QUEUE_PATH, event.to_dict())
+    append_to_event_queue(event)
     return event
 
-
-def poll_events() -> dict:
-    """Poll Telegram for new messages and enqueue them as events."""
-
-    # Load offset
-    state = read_json(POLLING_STATE_PATH, default={"last_offset": None})
-    offset = state.get("last_offset")
-
-    agent = TelegramDeliveryAgent()
-    updates = agent.get_updates(offset=offset)
-
-    events = []
-    ignored = 0
-    approvals = 0
-    max_update_id = int(offset) if offset else 0
-
-    for update in updates:
-        raw_id = update.get("update_id")
-        if not isinstance(raw_id, int):
-            ignored += 1
-            continue
-        update_id: int = raw_id
-        if max_update_id and update_id >= max_update_id:
-            max_update_id = update_id + 1
-        elif not max_update_id:
-            max_update_id = update_id + 1
-
-        message = update.get("message")
-        if not message or "text" not in message:
-            ignored += 1
-            continue
-
-        text = message.get("text")
-        sender = message.get("from", {})
-        chat = message.get("chat", {})
-
-        # Convert to event with metadata for traceability
-        metadata = {
-            "telegram": {
-                "update_id": update_id,
-                "message_id": message.get("message_id"),
-                "chat_id": chat.get("id"),
-                "sender_id": sender.get("id"),
-                "sender_username": sender.get("username"),
-            }
-        }
-
-        # Handle inbound approvals for messaging tasks
-        approval_match = re.search(
-            r"^(?:/)?approve\s+([\w\-]+)", text.strip(), re.IGNORECASE
-        )
-        if approval_match:
-            task_id = approval_match.group(1)
-
-            sentinel_dir = MESSAGING_TASKS_DIR / task_id
-            if sentinel_dir.exists():
-                if _is_authorized(sender.get("id")):
-                    (sentinel_dir / "approved").touch()
-                    text = f"Approved messaging task: {task_id}"
-                    approvals += 1
-                else:
-                    text = f"Unauthorized approval attempt for task: {task_id} (id={sender.get('id')})"
-
-        event = queue_event(text, metadata=metadata)
-        events.append(event)
-
-    # Save offset
-    if max_update_id is not None:
-        write_json(POLLING_STATE_PATH, {"last_offset": max_update_id})
-
-    return {
-        "polled": len(updates),
-        "enqueued": len(events),
-        "ignored": ignored,
-        "approvals": approvals,
-        "new_offset": max_update_id,
-        "events": [e.to_dict() for e in events],
-    }
-
-
-def print_status() -> None:
-    """Print a concise summary of the current system state."""
-    state = read_json(CURRENT_STATE_PATH, default=None)
-    if not state:
-        print("No runtime state found. Run 'init' first.")
-        return
-
-    queue_data = read_json(EVENT_QUEUE_PATH, default=[])
-    from agents.models import Event
-
-    queue = [Event(**item) for item in queue_data]
-
-    print("=== HexClamp Status ===")
-    print(f"Goal: {state.get('goal')}")
-
-    print(f"\nQueue Size: {len(queue)} events")
-    if queue:
-        print("Next in queue:")
-        for ev in queue[:3]:
-            text = ev.payload.get("text", "No text")
-            print(f"  - [{ev.id[:8]}] {text[:60]}{'...' if len(text) > 60 else ''}")
-
-    print(f"\nOpen Loops: {len(state.get('open_loops', []))}")
-    loops_data = read_json(OPEN_LOOPS_PATH, default=[])
-    loop_objs: list[OpenLoop] = []
-    if loops_data:
-        # Rank them to show the top 3 next priorities
-        from agents.models import OpenLoop
-
-        loop_objs = [OpenLoop(**loop_data) for loop_data in loops_data]
-        ranked = rank_open_loops(loop_objs)
-        if ranked:
-            print("Current priorities:")
-            for i, loop_obj in enumerate(ranked[:3]):
-                status_tag = (
-                    f" [{loop_obj.status.upper()}]" if loop_obj.status != "open" else ""
-                )
-                owner_tag = f" ({loop_obj.owner})"
-                print(
-                    f"  {i + 1}.{status_tag}{owner_tag} {loop_obj.title[:60]}{'...' if len(loop_obj.title) > 60 else ''}"
-                )
-
-    actions = state.get("current_actions", [])
-    print(f"Active Actions: {len(actions)}")
-    if actions:
-        for act_id in actions:
-            print(f"  - {act_id}")
-
-    # Show what the system WOULD do in the next cycle
-    planned_actions = plan_next_actions(queue, loop_objs)
-    if planned_actions:
-        next_act = planned_actions[0]
-        print("\nPlanned Next Action:")
-        print(f"  Type: {next_act.type}")
-        print(f"  Goal: {next_act.goal}")
-        print(f"  Executor: {next_act.executor}")
-
-    last_res = state.get("last_verified_result")
-    if last_res:
-        print("\n--- Last Verified Result ---")
-        print(f"Action: {last_res.get('action_id')}")
-        print(f"Status: {last_res.get('status')}")
-        summary = last_res.get("summary", "No summary available.")
-        # Print only first few lines of summary if long
-        lines = summary.split("\n")
-        short_summary = "\n".join(lines[:5])
-        if len(lines) > 5:
-            short_summary += "\n..."
-        print(f"Summary:\n{short_summary}")
-    print("========================")
-
-
-def _replace_or_append_loop(
-    open_loops: List[OpenLoop], updated: OpenLoop
-) -> List[OpenLoop]:
-    replaced = False
-    next_loops: List[OpenLoop] = []
-    for loop in open_loops:
-        if loop.id == updated.id:
-            next_loops.append(updated)
-            replaced = True
-        else:
-            next_loops.append(loop)
-    if not replaced:
-        next_loops.append(updated)
-    return next_loops
-
-
-def _active_loop_candidates(open_loops: List[OpenLoop]) -> List[OpenLoop]:
-    return rank_open_loops(open_loops)
-
-
-def _execute_event_action(action, event: Event):
-    if not _executor_enabled(action.executor):
-        raise ValueError(f"{action.executor} executor is disabled in config")
-    if action.executor == "code":
-        return execute_code_for_event(action, event, workspace_root=WORKSPACE_ROOT)
-    if action.executor == "browser":
-        return execute_browser_for_event(action, event)
-    if action.executor == "messaging":
-        return execute_message_for_event(action, event)
-    return execute_research_for_event(action, event)
-
-
-def _execute_loop_action(action, loop: OpenLoop):
-    if not _executor_enabled(action.executor):
-        raise ValueError(f"{action.executor} executor is disabled in config")
-    if action.executor == "code":
-        return execute_code_for_loop(action, loop, workspace_root=WORKSPACE_ROOT)
-    if action.executor == "browser":
-        return execute_browser_for_loop(action, loop)
-    if action.executor == "messaging":
-        return execute_message_for_loop(action, loop)
-    return execute_research_for_loop(action, loop)
-
-
-def process_once() -> Dict[str, Any]:
-    global _circuit_open, _consecutive_errors
-
-    # Circuit breaker: return early if open
-    if _circuit_open:
-        payload: Dict[str, Any] = {
-            "processed_event": None,
-            "processed_loop": None,
-            "state": None,
-            "actions": [],
-            "result": None,
-            "error": "CIRCUIT BREAKER TRIPPED — loop halted",
-        }
-        write_json(
-            RUNS_DIR
-            / f"run-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json",
-            payload,
-        )
-        write_json(RUNS_DIR / "last_run.json", payload)
-        return payload
-
-    ensure_dirs()
-    bootstrap_runtime_state()
-
-    # Load handoff if exists (from previous condensation)
-    handoff = load_handoff()
-    if handoff:
-        # Could log or use handoff context here
-        pass
-
-    queued_events = load_event_queue()
-    open_loops = load_open_loops()
-    previous_state = load_current_state()
-    
-    # Use new condense_with_handoff that creates handoff when triggers are met
-    
-    actions = plan_next_actions(queued_events, open_loops)
-    result = None
-    processed_event = None
-    processed_loop = None
-    execution_error = None
-
-    if actions:
-        action = actions[0]
-        state.current_actions = [action.id]
-
-        try:
-            if queued_events:
-                # Keep event in queue until after successful execution AND verification
-                event_to_process = queued_events[0]
-                summary, evidence, artifacts, loop = _execute_event_action(
-                    action, event_to_process
-                )
-                open_loops = _replace_or_append_loop(open_loops, loop)
-                result = verify_result(action, summary, evidence, artifacts)
-                # Only remove from queue after successful execution and verification
-                if result and result.verified:
-                    processed_event = queued_events.pop(0)
-                else:
-                    # Leave event in queue but mark it - verification failed or partial
-                    processed_event = event_to_process
-            else:
-                candidates = _active_loop_candidates(open_loops)
-                if candidates:
-                    # Use most urgent loop (index 0), matching plan_next_actions() which
-                    # selects ranked_loops[0] (most urgent) via _action_for_loop()
-                    processed_loop = candidates[0]
-                    summary, evidence, artifacts, updated_loop = _execute_loop_action(
-                        action, processed_loop
-                    )
-                    open_loops = _replace_or_append_loop(open_loops, updated_loop)
-                    result = verify_result(action, summary, evidence, artifacts)
-
-            if result:
-                state.last_verified_result = result.to_dict()
-
-            # Only fully verified work resets the circuit breaker.
-            if result is None or result.verified:
-                _reset_circuit()
-        except Exception as e:
-            execution_error = str(e)
-            _consecutive_errors += 1
-            if _consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
-                _trip_circuit()
-                execution_error = f"CIRCUIT BREAKER TRIPPED after {MAX_CONSECUTIVE_ERRORS} consecutive errors: {execution_error}"
-    else:
-        # Idle cycle — prune stale loops
-        state.current_actions = []
-        open_loops = prune_old_loops(open_loops)
-
-    state = previous_state
-    
-    # Condense state post-execution with updated queue/loops
-    state = condense_state(queued_events, open_loops, state)
-    save_event_queue(queued_events)
-    save_open_loops(open_loops)
-    write_json(CURRENT_STATE_PATH, state.to_dict())
-    _persist_circuit_breaker_state()
-
-    run_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    payload = {
-        "processed_event": processed_event.to_dict() if processed_event else None,
-        "processed_loop": processed_loop.to_dict() if processed_loop else None,
-        "state": state.to_dict(),
-        "actions": [action.to_dict() for action in actions],
-        "result": result.to_dict() if result else None,
-        "error": execution_error,
-        "circuit_open": _circuit_open,
-    }
-    write_json(RUNS_DIR / f"run-{run_stamp}.json", payload)
-    write_json(RUNS_DIR / "last_run.json", payload)
-    return payload
-
-
-# Load persisted circuit breaker state on startup
-_load_circuit_breaker_state()
-
-
-if __name__ == "__main__":
-    ensure_dirs()
-    if len(sys.argv) > 1 and sys.argv[1] == "init":
-        created = bootstrap_runtime_state()
-        print(json.dumps({"bootstrapped": created}, indent=2))
-    elif len(sys.argv) > 1 and sys.argv[1] == "enqueue":
-        bootstrap_runtime_state()
-        text = " ".join(sys.argv[2:]).strip() or "Queued event"
-        event = queue_event(text)
-        print(json.dumps({"queued": event.to_dict()}, indent=2))
-    elif len(sys.argv) > 1 and sys.argv[1] == "poll":
-        bootstrap_runtime_state()
-        summary = poll_events()
-        summary["offset_stored_at"] = str(POLLING_STATE_PATH.relative_to(store.BASE))
-        print(json.dumps(summary, indent=2))
-    elif len(sys.argv) > 1 and sys.argv[1] == "status":
-        print_status()
-    else:
-        print(json.dumps(process_once(), indent=2))
+__all__ = [
+    "process_once",
+    "poll_events",
+    "print_status",
+    "queue_event",
+    "is_circuit_open",
+    "get_circuit_state",
+    "MAX_CONSECUTIVE_ERRORS",
+    "load_config",
+    "executor_enabled",
+    "get_executor_config",
+    "load_current_state",
+    "save_current_state",
+    "load_event_queue",
+    "save_event_queue",
+    "append_to_event_queue",
+    "load_loops",
+    "save_loops",
+    "append_to_loops",
+    "replace_or_append_loop",
+    "is_stale",
+    "prune_old_loops",
+    "get_active_loops",
+    "create_loop",
+    "EVENT_QUEUE_PATH",
+    "LOOPS_PATH",
+    "CURRENT_STATE_PATH",
+    "CIRCUIT_STATE_PATH",
+    "POLLING_STATE_PATH",
+    "OPEN_LOOPS_PATH",
+    "CIRCUIT_BREAKER_PATH",
+    "AUTHORIZED_USERS_PATH",
+    # Backward compatibility
+    "_circuit_open",
+    "_consecutive_errors",
+    "bootstrap_runtime_state",
+    "STATE_DIR",
+    "RUNS_DIR",
+]
