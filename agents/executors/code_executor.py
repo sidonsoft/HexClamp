@@ -131,16 +131,86 @@ def _spawn_coding_agent(task: str, workdir: Path, agent_id: str = "codex") -> di
             subprocess.run(
                 ["git", "init"], cwd=str(workdir), capture_output=True, timeout=10
             )
-            subprocess.run(
-                ["git", "config", "user.email", "hydra@claw.ai"],
-                cwd=str(workdir),
-                capture_output=True,
-            )
-            subprocess.run(
-                ["git", "config", "user.name", "Hydra Claw"],
-                cwd=str(workdir),
-                capture_output=True,
-            )
+            # Set default git identity only if not already configured
+            try:
+                # Check if user.name is already configured
+                name_result = subprocess.run(
+                    ["git", "config", "user.name"],
+                    cwd=str(workdir),
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                # Check if user.email is already configured
+                email_result = subprocess.run(
+                    ["git", "config", "user.email"],
+                    cwd=str(workdir),
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                # Only set defaults if either name or email is not configured
+                if not name_result.stdout.strip():
+                    subprocess.run(
+                        ["git", "config", "user.name", "Hydra Claw"],
+                        cwd=str(workdir),
+                        capture_output=True,
+                    )
+                if not email_result.stdout.strip():
+                    subprocess.run(
+                        ["git", "config", "user.email", "hydra@claw.ai"],
+                        cwd=str(workdir),
+                        capture_output=True,
+                    )
+            except subprocess.TimeoutExpired:
+                # Fallback to setting defaults if git config commands fail
+                subprocess.run(
+                    ["git", "config", "user.name", "Hydra Claw"],
+                    cwd=str(workdir),
+                    capture_output=True,
+                )
+                subprocess.run(
+                    ["git", "config", "user.email", "hydra@claw.ai"],
+                    cwd=str(workdir),
+                    capture_output=True,
+                )
+        else:
+            # For existing repositories, check if user config is already set
+            try:
+                # Check if user.name is already configured
+                name_result = subprocess.run(
+                    ["git", "config", "user.name"],
+                    cwd=str(workdir),
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                # Check if user.email is already configured
+                email_result = subprocess.run(
+                    ["git", "config", "user.email"],
+                    cwd=str(workdir),
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                # Only set defaults if either name or email is not configured
+                if not name_result.stdout.strip():
+                    subprocess.run(
+                        ["git", "config", "user.name", "Hydra Claw"],
+                        cwd=str(workdir),
+                        capture_output=True,
+                    )
+                if not email_result.stdout.strip():
+                    subprocess.run(
+                        ["git", "config", "user.email", "hydra@claw.ai"],
+                        cwd=str(workdir),
+                        capture_output=True,
+                    )
+            except subprocess.TimeoutExpired:
+                # If git config commands fail, continue without setting defaults
+                pass
 
         # Get initial git status
         subprocess.run(
