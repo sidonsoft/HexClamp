@@ -153,10 +153,16 @@ def process_once() -> Dict[str, Any]:
                 # If result is a dict with verified=False, keep event in queue
                 if isinstance(result, dict) and result.get('verified') == False:
                     should_remove = False
-                # If result is a tuple (legacy), check verified field
-                elif isinstance(result, tuple) and len(result) > 0:
-                    # Legacy tuple format doesn't have verified, assume pending
-                    should_remove = False
+                # If result is a tuple, check OpenLoop status
+                elif isinstance(result, tuple) and len(result) > 3:
+                    # Tuple format: (summary, evidence, artifacts, OpenLoop)
+                    # Remove from queue only if OpenLoop status is 'resolved'
+                    open_loop = result[3]
+                    if hasattr(open_loop, 'status'):
+                        # blocked = needs approval, keep in queue
+                        # resolved = complete, remove from queue
+                        # open = needs follow-up, remove from queue (loop tracks it)
+                        should_remove = open_loop.status != "blocked"
             
             if should_remove:
                 events.pop(0)
