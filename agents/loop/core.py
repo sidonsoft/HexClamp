@@ -77,9 +77,9 @@ def process_once() -> Dict[str, Any]:
     # Load current state
     current_state = load_current_state()
     
-    # Load event queue
+    # Load event queue - PEEK at first event (don't pop yet)
     events = load_event_queue()
-    event = events.pop(0) if events else None
+    event = events[0] if events else None
     
     # Load loops
     loops = load_loops()
@@ -107,6 +107,18 @@ def process_once() -> Dict[str, Any]:
             if actions_list:
                 actions.extend(actions_list)
                 result = _execute_event_action(actions_list[0], event)
+                
+                # Extract OpenLoop from result if present (e.g., from messaging executor)
+                # Result tuple format: (summary, evidence, artifacts, loop)
+                if isinstance(result, tuple) and len(result) >= 4:
+                    from agents.models import OpenLoop
+                    loop_obj = result[3]  # Loop is 4th element (index 3)
+                    if isinstance(loop_obj, OpenLoop):
+                        loops.append(loop_obj)
+                        replace_or_append_loop(loop_obj)
+                        # Update current state with new loop
+                        if current_state:
+                            current_state.open_loops.append(loop_obj.id)
         
         # Process loop if present
         elif loop:
@@ -132,6 +144,23 @@ def process_once() -> Dict[str, Any]:
                     loop.updated_at = datetime.now(timezone.utc)
                     replace_or_append_loop(loop)
         
+        # Remove event from queue only if successfully processed AND verified
+        # (or if no messaging task was created)
+        if event and events and events[0].id == event.id:
+            # Check if result indicates pending verification
+            should_remove = True
+            if result:
+                # If result is a dict with verified=False, keep event in queue
+                if isinstance(result, dict) and result.get('verified') == False:
+                    should_remove = False
+                # If result is a tuple (legacy), check verified field
+                elif isinstance(result, tuple) and len(result) > 0:
+                    # Legacy tuple format doesn't have verified, assume pending
+                    should_remove = False
+            
+            if should_remove:
+                events.pop(0)
+        
         # Save state
         if current_state:
             save_current_state(current_state)
@@ -142,24 +171,49 @@ def process_once() -> Dict[str, Any]:
         # Prune old loops periodically
         prune_old_loops()
         
-        # Success - reset circuit breaker
+        # Success - reset circuit breaker and persist state
         _reset_circuit()
         _consecutive_errors = 0
+        _persist_circuit_breaker_state()
         
     except Exception as e:
         error = str(e)
         _consecutive_errors += 1
         if _consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
             _trip_circuit()
+            # Circuit just tripped - override error with circuit breaker message
+            error = "CIRCUIT BREAKER TRIPPED — loop halted"
         _persist_circuit_breaker_state()
+        # Clear processed event/loop on error - they weren't successfully processed
+        event = None
+        loop = None
     
     # Build result payload
+    def _serialize_result(r):
+        """Serialize result to JSON-serializable format."""
+        if isinstance(r, dict):
+            return r
+        if hasattr(r, 'to_dict'):
+            return r.to_dict()
+        if isinstance(r, tuple):
+            # Convert tuple to dict (for legacy executor returns)
+            # Tuple format: (message, event_ids, action_ids, file_paths, open_loop)
+            result_dict = {
+                "message": str(r[0]) if len(r) > 0 else None,
+                "verified": False,  # Messaging tasks require approval
+                "status": "partial",  # Pending approval
+            }
+            if len(r) > 4 and hasattr(r[4], 'to_dict'):
+                result_dict["open_loop"] = r[4].to_dict()
+            return result_dict
+        return {"result": str(r), "verified": False, "status": "partial"}
+    
     payload = {
         "processed_event": event.to_dict() if event else None,
         "processed_loop": loop.to_dict() if loop else None,
         "state": current_state.to_dict() if current_state else None,
         "actions": [a.to_dict() for a in actions],
-        "result": result,
+        "result": _serialize_result(result),
         "error": error,
         "circuit_breaker": get_circuit_state(),
     }
