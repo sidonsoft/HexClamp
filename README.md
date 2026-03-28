@@ -12,6 +12,40 @@ Observe → Condense → Plan → Execute → Verify → Persist
 
 Each cycle loads current state, generates actions from ranked open loops, executes one action, verifies the result, and persists the updated state. Everything is file-backed — no invisible prompt state.
 
+## Recent Fixes (2026-03-28)
+
+HexClamp completed a comprehensive bug fix, security hardening, and quality improvement pass. All 11 issues fixed and verified by independent agent review.
+
+### Bug Fixes (4/4)
+
+| ID | Issue | Severity | Status |
+|---|---|---|---|
+| #1 | Operator precedence in `classify_text` — `.py` mentions misclassified | 🔴 High | ✅ Fixed |
+| #2 | Undefined `loop_objs` in `print_status` — crashes on empty loops | 🟡 Medium | ✅ Fixed |
+| #3 | Double condensation in `process_once` — wasted CPU, stale state | 🟡 Medium | ✅ Fixed |
+| #4 | Dynamic imports in `poll_events` — deferred import errors | 🟡 Medium | ✅ Fixed |
+
+### Security Fixes (4/4)
+
+| ID | Issue | Severity | Status |
+|---|---|---|---|
+| Sec-1 | Hardcoded git identity overwrites user config | 🟡 Medium | ✅ Fixed |
+| Sec-2 | System pattern false positives silently drop messages | 🔴 High | ✅ Fixed |
+| Sec-3 | SSRF protection gaps — link-local IPs, DNS rebinding | 🟡 Medium | ✅ Fixed |
+| Sec-4 | Silent auth failure when `TELEGRAM_AUTHORIZED_USER_IDS` unset | 🟢 Low | ✅ Fixed |
+
+### Quality Improvements (3/3)
+
+| ID | Issue | Status |
+|---|---|---|
+| Qual-1 | Removed duplicated `_load_policies` function | ✅ Fixed |
+| Qual-2 | Stripped private functions from `__all__` exports | ✅ Fixed |
+| Qual-3 | Unified `"messaging"` naming (was `"message"`) | ✅ Fixed |
+
+**Review:** All fixes independently verified by coderplus agent. See `memory/2026-03-28-hexclamp-final-review.md` in Obsidian vault.
+
+---
+
 ## Harness Improvements (2026-03-26)
 
 HexClamp recently completed a comprehensive 5-phase harness improvement project, implementing:
