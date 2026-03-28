@@ -11,6 +11,8 @@ from .browser import (
     BROWSER_TASKS_DIR,
     execute_browser_for_event,
     execute_browser_for_loop,
+    _validate_url,
+    _navigate_and_capture,
 )
 from .messaging import (
     MESSAGING_TASKS_DIR,
@@ -39,6 +41,8 @@ __all__ = [
     "execute_message_for_loop",
     "execute_research_for_event",
     "execute_research_for_loop",
-    # Parsers (for testing)
+    # Parsers/validators (for testing)
     "_parse_message_task",
+    "_validate_url",
+    "_navigate_and_capture",
 ]
