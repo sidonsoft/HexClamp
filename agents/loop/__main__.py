@@ -55,7 +55,7 @@ def cmd_status():
     if loops:
         print("\nRecent loops:")
         for loop in loops[-3:]:
-            print(f"  - {loop.id}: {loop.status} - {loop.task[:50]}...")
+            print(f"  - {loop.id}: {loop.status} - {loop.title[:50]}...")
     
     if events:
         print("\nQueued events:")
