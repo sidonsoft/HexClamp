@@ -16,6 +16,7 @@ from .messaging import (
     MESSAGING_TASKS_DIR,
     execute_message_for_event,
     execute_message_for_loop,
+    _parse_message_task,
 )
 from .research import (
     execute_research_for_event,
@@ -38,4 +39,6 @@ __all__ = [
     "execute_message_for_loop",
     "execute_research_for_event",
     "execute_research_for_loop",
+    # Parsers (for testing)
+    "_parse_message_task",
 ]
