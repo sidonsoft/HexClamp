@@ -171,14 +171,29 @@ def save_open_loops(open_loops: List[OpenLoop]) -> None:
     write_json(OPEN_LOOPS_PATH, payload)
 
 
+# Flag to track if we've warned about missing env var
+_auth_warning_shown = False
+
+
 def _is_authorized(sender_id: int | None) -> bool:
     """Check if a Telegram sender ID is authorized to perform administrative actions."""
     import os
+    import warnings
+
+    global _auth_warning_shown
 
     if not sender_id:
         return False
     auth_env = os.environ.get("TELEGRAM_AUTHORIZED_USER_IDS", "")
     if not auth_env:
+        if not _auth_warning_shown:
+            warnings.warn(
+                "TELEGRAM_AUTHORIZED_USER_IDS environment variable is not set. "
+                "All Telegram approvals will be rejected.",
+                RuntimeWarning,
+                stacklevel=2
+            )
+            _auth_warning_shown = True
         return False
     try:
         authorized_ids = [int(i.strip()) for i in auth_env.split(",") if i.strip()]
