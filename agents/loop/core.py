@@ -23,6 +23,7 @@ from agents.loop.circuit_breaker import (
     _persist_circuit_breaker_state,
     get_circuit_state,
     MAX_CONSECUTIVE_ERRORS,
+    _consecutive_errors,
 )
 from agents.loop.state_loaders import (
     load_current_state,
@@ -97,12 +98,9 @@ def process_once() -> Dict[str, Any]:
             
             # Condense event into state
             if current_state:
-                current_state = condense_state(current_state, event)
+                current_state = condense_state([event], loops, current_state)
             else:
-                current_state = CurrentState(
-                    events=[event],
-                    loops=loops,
-                )
+                current_state = condense_state([event], loops)
             
             # Plan action for event
             actions_list = plan_next_actions([event], loops)
@@ -120,7 +118,7 @@ def process_once() -> Dict[str, Any]:
             else:
                 # Condense loop progress
                 if current_state:
-                    current_state = condense_state(current_state, loop=loop)
+                    current_state = condense_state([], [loop], current_state)
                 
                 # Plan next action for loop
                 actions_list = plan_next_actions([], [loop])
@@ -129,7 +127,8 @@ def process_once() -> Dict[str, Any]:
                     result = _execute_loop_action(actions_list[0], loop)
                     
                     # Update loop with result
-                    loop.results.append(result)
+                    if hasattr(loop, 'results'):
+                        loop.results.append(result)
                     loop.updated_at = datetime.now(timezone.utc)
                     replace_or_append_loop(loop)
         

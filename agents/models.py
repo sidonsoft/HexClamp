@@ -16,6 +16,14 @@ class Event:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> CurrentState:
+        return cls(**data)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> Event:
+        return cls(**data)
 
 
 @dataclass
@@ -31,6 +39,14 @@ class Action:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> CurrentState:
+        return cls(**data)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> Action:
+        return cls(**data)
 
 
 @dataclass
@@ -50,6 +66,14 @@ class OpenLoop:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> CurrentState:
+        return cls(**data)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> OpenLoop:
+        return cls(**data)
 
 
 @dataclass
@@ -64,6 +88,14 @@ class Result:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> CurrentState:
+        return cls(**data)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> Result:
+        return cls(**data)
 
 
 @dataclass
@@ -77,3 +109,11 @@ class CurrentState:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> CurrentState:
+        return cls(**data)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> CurrentState:
+        return cls(**data)
