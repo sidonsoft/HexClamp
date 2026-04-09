@@ -104,7 +104,6 @@ class WebhookReceiver:
 
     def verify_slack(
         self,
-        payload: bytes,
         timestamp: str,
         signature: str,
         body: bytes,
@@ -177,7 +176,7 @@ class WebhookReceiver:
         )
 
         if signature and timestamp and raw_body:
-            if not self.verify_slack(b"", timestamp, signature, raw_body):
+            if not self.verify_slack(timestamp, signature, raw_body):
                 logger.warning("Slack signature verification failed")
                 return None
 

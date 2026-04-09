@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,11 +22,21 @@ class HexClampStore:
         self.results_dir = workspace / "results"
 
         self._ensure_dirs()
-
+        self._cleanup_orphaned_tmp_files()
     def _ensure_dirs(self) -> None:
         """Ensure required directories exist."""
         for directory in [self.events_dir, self.loops_dir, self.results_dir]:
             directory.mkdir(parents=True, exist_ok=True)
+
+    def _cleanup_orphaned_tmp_files(self) -> None:
+        """Clean up orphaned .tmp files from crashed writes."""
+        for directory in [self.events_dir, self.loops_dir, self.results_dir]:
+            for tmp_file in directory.glob("*.tmp"):
+                try:
+                    tmp_file.unlink()
+                    logger.debug(f"Cleaned up orphaned tmp file: {tmp_file}")
+                except OSError as e:
+                    logger.warning(f"Failed to cleanup {tmp_file}: {e}")
 
     def _read_json(self, path: Path) -> dict[str, object]:
         """Read JSON file safely."""
@@ -37,9 +48,16 @@ class HexClampStore:
             return {}
 
     def _write_json(self, path: Path, data: dict) -> None:
-        """Write JSON file atomically."""
+        """Write JSON file atomically with fsync for durability."""
         temp = path.with_suffix(".tmp")
         temp.write_text(json.dumps(data, indent=2))
+        # Ensure data is flushed to disk before rename
+        fd = os.open(str(temp), os.O_RDWR)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        # Atomic rename
         temp.rename(path)
 
     # Event operations

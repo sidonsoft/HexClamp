@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -100,7 +101,7 @@ class OpenClawAdapter:
             try:
                 request = Request(
                     f"{self.endpoint}/api/execute",
-                    data=str(payload).encode(),
+                    data=json.dumps(payload).encode(),
                     headers={
                         "Content-Type": "application/json",
                         "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
