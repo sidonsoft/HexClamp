@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from filelock import FileLock
 from pathlib import Path
 
 from hexclamp.models import Event, LoopStatus, OpenLoop, Result
@@ -39,26 +40,30 @@ class HexClampStore:
                     logger.warning(f"Failed to cleanup {tmp_file}: {e}")
 
     def _read_json(self, path: Path) -> dict[str, object] | None:
-        """Read JSON file safely. Returns None on error."""
-        try:
-            data: dict[str, object] = json.loads(path.read_text())
-            return data
-        except (json.JSONDecodeError, OSError) as e:
-            logger.warning(f"Failed to read {path}: {e}")
-            return None
+        """Read JSON file safely with file lock. Returns None on error."""
+        lock_path = path.with_suffix(path.suffix + ".lock")
+        with FileLock(lock_path, timeout=30):
+            try:
+                data: dict[str, object] = json.loads(path.read_text())
+                return data
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"Failed to read {path}: {e}")
+                return None
 
     def _write_json(self, path: Path, data: dict) -> None:
-        """Write JSON file atomically with fsync for durability."""
-        temp = path.with_suffix(".tmp")
-        temp.write_text(json.dumps(data, indent=2))
-        # Ensure data is flushed to disk before rename
-        fd = os.open(str(temp), os.O_RDWR)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-        # Atomic rename
-        temp.rename(path)
+        """Write JSON file atomically with file lock and fsync for durability."""
+        lock_path = path.with_suffix(path.suffix + ".lock")
+        with FileLock(lock_path, timeout=30):
+            temp = path.with_suffix(".tmp")
+            temp.write_text(json.dumps(data, indent=2))
+            # Ensure data is flushed to disk before rename
+            fd = os.open(str(temp), os.O_RDWR)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            # Atomic rename
+            temp.rename(path)
 
     # Event operations
     def save_event(self, event: Event) -> None:
@@ -132,12 +137,14 @@ class HexClampStore:
         return None
 
     def delete_loop(self, loop_id: str) -> bool:
-        """Delete a loop."""
+        """Delete a loop with file lock."""
         path = self.loops_dir / f"{loop_id}.json"
-        if path.exists():
-            path.unlink()
-            return True
-        return False
+        lock_path = path.with_suffix(path.suffix + ".lock")
+        with FileLock(lock_path, timeout=30):
+            if path.exists():
+                path.unlink()
+                return True
+            return False
 
     # Result operations
     def save_result(self, loop_id: str, result: Result) -> None:

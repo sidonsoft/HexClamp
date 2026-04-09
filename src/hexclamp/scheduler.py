@@ -299,20 +299,79 @@ class TimerManager:
             logger.exception(f"Error running schedule {schedule.name}: {e}")
 
     def _calculate_next_cron_run(self, cron: CronExpression, from_time: float) -> float:
-        """Calculate next run time for a cron expression."""
-        from datetime import timedelta
+        """Calculate next run time for a cron expression.
+
+        Optimized to skip ahead intelligently instead of iterating by 1 minute.
+        - If month doesn't match: jump to 1st of next matching month at 00:00
+        - If day doesn't match: jump to next day at 00:00
+        - If hour doesn't match: jump to next hour at :00
+        - If minute doesn't match: increment by 1 minute
+
+        Reduces worst-case from O(527K) iterations to O(12 + 31 + 24 + 60) ≈ O(127).
+        """
         dt = datetime.fromtimestamp(from_time, tz=timezone.utc)
 
         # Start from next minute
         dt = dt.replace(second=0, microsecond=0) + timedelta(minutes=1)
 
-        # Search up to 1 year forward
-        for _ in range(366 * 24 * 60):
-            if cron.matches(dt):
-                return dt.timestamp()
-            dt = dt + timedelta(minutes=1)
+        # Search up to 1 year forward with intelligent skipping
+        max_iterations = 366 * 24 * 60
+        iteration = 0
+        while iteration < max_iterations:
+            iteration += 1
+            # Check month - skip to 1st of next matching month if no match
+            if not cron._matches_field(cron.month, dt.month, 1, 12):
+                # Find next matching month
+                current_month = dt.month
+                found_month = False
+                for _ in range(12):
+                    current_month = (current_month % 12) + 1
+                    if cron._matches_field(cron.month, current_month, 1, 12):
+                        # Jump to 1st of that month at 00:00
+                        year = dt.year + (1 if current_month <= dt.month else 0)
+                        dt = dt.replace(
+                            year=year,
+                            month=current_month,
+                            day=1,
+                            hour=0,
+                            minute=0,
+                        )
+                        found_month = True
+                        break
+                if not found_month:
+                    break  # No matching month found
+                continue
+
+            # Check day of month - skip to next day if no match
+            if not cron._matches_field(cron.day_of_month, dt.day, 1, 31):
+                # Jump to next day at 00:00
+                dt = (dt + timedelta(days=1)).replace(hour=0, minute=0)
+                continue
+
+            # Check day of week - skip to next day if no match
+            python_weekday = dt.weekday()
+            cron_weekday = (python_weekday + 1) % 7
+            if not cron._matches_field(cron.day_of_week, cron_weekday, 0, 6):
+                # Jump to next day at 00:00
+                dt = (dt + timedelta(days=1)).replace(hour=0, minute=0)
+                continue
+
+            # Check hour - skip to next hour if no match
+            if not cron._matches_field(cron.hour, dt.hour, 0, 23):
+                # Jump to next hour at :00
+                dt = (dt + timedelta(hours=1)).replace(minute=0)
+                continue
+
+            # Check minute - skip to next minute if no match
+            if not cron._matches_field(cron.minute, dt.minute, 0, 59):
+                dt = dt + timedelta(minutes=1)
+                continue
+
+            # All fields match!
+            return dt.timestamp()
 
         return from_time + 365 * 24 * 60 * 60  # Default to one year
+
 
 
 class Timer:
