@@ -97,7 +97,7 @@ class CronExpression:
             step = int(step_str)
             if base == "*":
                 return value % step == 0
-            return value % step == 0
+            return value >= int(base) and (value - int(base)) % step == 0
 
         if "-" in pattern:
             start, end = pattern.split("-")

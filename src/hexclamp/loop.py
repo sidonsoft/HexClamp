@@ -1,7 +1,7 @@
 """HexClamp main loop orchestrator."""
 
 import logging
-from abc import ABC, abstractmethod
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -16,26 +16,25 @@ from hexclamp.models import (
     Result,
 )
 from hexclamp.store import HexClampStore
+from hexclamp.agent import HexClampAgent
 
 logger = logging.getLogger(__name__)
 
-
-class HexClampAgent(ABC):
-    """Abstract agent interface."""
-
-    @abstractmethod
-    def execute(self, action: Action) -> Result:
-        """Execute an action and return result."""
-        pass
-
-    @abstractmethod
-    def get_workspace(self) -> Path:
-        """Get the agent's workspace path."""
-        pass
-
-
 class HexClampLoop:
     """Main loop orchestrator."""
+
+    # Keyword mappings for action type classification
+    _KEYWORD_MAP: dict[str, ActionType] = {
+        "research": ActionType.RESEARCH,
+        "search": ActionType.RESEARCH,
+        "find": ActionType.RESEARCH,
+        "message": ActionType.MESSAGE,
+        "send": ActionType.MESSAGE,
+        "notify": ActionType.MESSAGE,
+        "verify": ActionType.VERIFY,
+        "test": ActionType.VERIFY,
+        "check": ActionType.VERIFY,
+    }
 
     def __init__(self, workspace: Path, agent: HexClampAgent) -> None:
         """Initialize loop."""
@@ -47,7 +46,7 @@ class HexClampLoop:
     def enqueue(self, description: str, source: str = "cli") -> OpenLoop:
         """Enqueue a new task."""
         event = Event(
-            id=f"evt-{datetime.now(timezone.utc).timestamp()}",
+            id=f"evt-{uuid.uuid4().hex[:12]}",
             type=EventType.TASK,
             content=description,
             metadata={"source": source},
@@ -55,7 +54,7 @@ class HexClampLoop:
         self.store.save_event(event)
 
         loop = OpenLoop(
-            id=f"loop-{datetime.now(timezone.utc).timestamp()}",
+            id=f"loop-{uuid.uuid4().hex[:12]}",
             event_id=event.id,
             description=description,
         )
@@ -97,16 +96,27 @@ class HexClampLoop:
 
         return processed
 
+    def _classify_action_type(self, description: str) -> ActionType:
+        """Classify action type based on keywords in description."""
+        desc_lower = description.lower()
+        for keyword, action_type in self._KEYWORD_MAP.items():
+            if keyword in desc_lower:
+                return action_type
+        return ActionType.CODE  # Default
+
     def _execute_loop(self, loop: OpenLoop) -> bool:
         """Execute a single loop."""
         # Update status to in_progress
         loop.status = LoopStatus.IN_PROGRESS
         self.store.save_loop(loop)
 
+        # Classify action type based on keywords
+        action_type = self._classify_action_type(loop.description)
+
         # Create action
         action = Action(
-            id=f"action-{datetime.now(timezone.utc).timestamp()}",
-            type=ActionType.CODE,
+            id=f"action-{uuid.uuid4().hex[:12]}",
+            type=action_type,
             description=loop.description,
             priority=loop.priority,
         )

@@ -38,14 +38,14 @@ class HexClampStore:
                 except OSError as e:
                     logger.warning(f"Failed to cleanup {tmp_file}: {e}")
 
-    def _read_json(self, path: Path) -> dict[str, object]:
-        """Read JSON file safely."""
+    def _read_json(self, path: Path) -> dict[str, object] | None:
+        """Read JSON file safely. Returns None on error."""
         try:
             data: dict[str, object] = json.loads(path.read_text())
             return data
         except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"Failed to read {path}: {e}")
-            return {}
+            return None
 
     def _write_json(self, path: Path, data: dict) -> None:
         """Write JSON file atomically with fsync for durability."""
