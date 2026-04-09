@@ -99,13 +99,14 @@ class OpenClawAdapter:
 
         for attempt in range(self.max_retries):
             try:
+                headers = {"Content-Type": "application/json"}
+                if self.api_key:
+                    headers["Authorization"] = f"Bearer {self.api_key}"
+
                 request = Request(
                     f"{self.endpoint}/api/execute",
                     data=json.dumps(payload).encode(),
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {self.api_key}" if self.api_key else "",
-                    },
+                    headers=headers,
                 )
 
                 with urlopen(request, timeout=self.timeout) as response:

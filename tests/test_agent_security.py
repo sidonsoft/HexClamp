@@ -18,6 +18,8 @@ class TestShellInjectionPrevention:
     def test_blocks_shell_metacharacter_semicolon(self, agent):
         """Block command injection via semicolon."""
         action = Action(
+            id='test-1',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={"command": "run", "script": "ls; rm -rf /"},
         )
@@ -29,6 +31,8 @@ class TestShellInjectionPrevention:
     def test_blocks_shell_metacharacter_pipe(self, agent):
         """Block command injection via pipe."""
         action = Action(
+            id='test-2',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={"command": "run", "script": "ls | cat /etc/passwd"},
         )
@@ -39,6 +43,8 @@ class TestShellInjectionPrevention:
     def test_blocks_shell_metacharacter_ampersand(self, agent):
         """Block command injection via ampersand."""
         action = Action(
+            id='test-3',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={"command": "run", "script": "ls & cat /etc/passwd"},
         )
@@ -49,6 +55,8 @@ class TestShellInjectionPrevention:
     def test_blocks_shell_metacharacter_dollar(self, agent):
         """Block command injection via dollar sign."""
         action = Action(
+            id='test-4',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={"command": "run", "script": "echo $(cat /etc/passwd)"},
         )
@@ -59,6 +67,8 @@ class TestShellInjectionPrevention:
     def test_blocks_shell_metacharacter_backtick(self, agent):
         """Block command injection via backtick."""
         action = Action(
+            id='test-5',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={"command": "run", "script": "echo `cat /etc/passwd`"},
         )
@@ -69,6 +79,8 @@ class TestShellInjectionPrevention:
     def test_blocks_non_whitelisted_command(self, agent):
         """Block commands not in whitelist."""
         action = Action(
+            id='test-6',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={"command": "run", "script": "rm -rf /"},
         )
@@ -80,6 +92,8 @@ class TestShellInjectionPrevention:
     def test_allows_whitelisted_command(self, agent):
         """Allow commands in whitelist."""
         action = Action(
+            id='test-7',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={"command": "run", "script": "ls -la"},
         )
@@ -93,6 +107,8 @@ class TestShellInjectionPrevention:
         test_file.write_text("hello world\nfoo bar\n")
         
         action = Action(
+            id='test-8',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={"command": "run", "script": "grep hello test.txt"},
         )
@@ -103,6 +119,8 @@ class TestShellInjectionPrevention:
     def test_blocks_path_traversal_read(self, agent):
         """Block path traversal in read command."""
         action = Action(
+            id='test-9',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={"command": "read", "path": "../../../etc/passwd"},
         )
@@ -113,6 +131,8 @@ class TestShellInjectionPrevention:
     def test_blocks_path_traversal_write(self, agent):
         """Block path traversal in write command."""
         action = Action(
+            id='test-10',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={
                 "command": "write",
@@ -127,6 +147,8 @@ class TestShellInjectionPrevention:
     def test_research_blocks_non_whitelisted_command(self, agent):
         """Block non-whitelisted commands in research."""
         action = Action(
+            id='test-11',
+            description='Test action',
             type=ActionType.RESEARCH,
             kwargs={"command": "rm"},
             args=["-rf", "/"],
@@ -138,6 +160,8 @@ class TestShellInjectionPrevention:
     def test_research_blocks_shell_metacharacters_in_args(self, agent):
         """Block shell metacharacters in research arguments."""
         action = Action(
+            id='test-12',
+            description='Test action',
             type=ActionType.RESEARCH,
             kwargs={"command": "grep"},
             args=["hello; rm -rf /", "file.txt"],
@@ -153,6 +177,8 @@ class TestShellInjectionPrevention:
         test_file.write_text("hello world\n")
         
         action = Action(
+            id='test-13',
+            description='Test action',
             type=ActionType.RESEARCH,
             kwargs={"command": "grep"},
             args=["hello", "test.txt"],
@@ -163,6 +189,8 @@ class TestShellInjectionPrevention:
     def test_empty_script_rejected(self, agent):
         """Reject empty script."""
         action = Action(
+            id='test-14',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={"command": "run", "script": ""},
         )
@@ -173,6 +201,8 @@ class TestShellInjectionPrevention:
     def test_none_script_rejected(self, agent):
         """Reject None script."""
         action = Action(
+            id='test-15',
+            description='Test action',
             type=ActionType.CODE,
             kwargs={"command": "run", "script": None},
         )
@@ -199,6 +229,8 @@ class TestShellInjectionPrevention:
                 script = f"{cmd}"
             
             action = Action(
+                id=f'test-16-{cmd}',
+                description='Test action',
                 type=ActionType.CODE,
                 kwargs={"command": "run", "script": script},
             )
