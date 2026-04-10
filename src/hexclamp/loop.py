@@ -2,10 +2,10 @@
 
 import logging
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from hexclamp.agent import HexClampAgent
 from hexclamp.models import (
     Action,
     ActionType,
@@ -16,7 +16,6 @@ from hexclamp.models import (
     Result,
 )
 from hexclamp.store import HexClampStore
-from hexclamp.agent import HexClampAgent
 
 logger = logging.getLogger(__name__)
 

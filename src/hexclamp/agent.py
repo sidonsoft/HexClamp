@@ -1,8 +1,8 @@
 """Reference CLI agent implementation."""
 
 import logging
-import subprocess
 import shlex
+import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 

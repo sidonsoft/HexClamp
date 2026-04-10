@@ -4,8 +4,9 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from filelock import FileLock
 from pathlib import Path
+
+from filelock import FileLock
 
 from hexclamp.models import Event, LoopStatus, OpenLoop, Result
 
